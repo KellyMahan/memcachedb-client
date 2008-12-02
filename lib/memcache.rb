@@ -40,20 +40,11 @@ class MemCache
   DEFAULT_WEIGHT = 1
 
   ##
-  # Default read timeout.
-  
-  DEFAULT_READ_TIMEOUT = 1.0
-
-  ##
   # The amount of time to wait for a response from a memcached server.  If a
   # response is not completed within this time, the connection to the server
   # will be closed and an error will be raised.
 
   attr_accessor :request_timeout
-
-  ##
-  # Amount of time to wait before timing out a read operation.
-  attr_accessor :read_timeout
 
   ##
   # The namespace for this instance
@@ -184,9 +175,7 @@ class MemCache
 
   def get(key, raw = false)
     with_server(key) do |server, cache_key|
-      Timeout::timeout(read_timeout || READ_TIMEOUT, ReadTimeoutError) do
-        value = cache_get server, cache_key
-      end
+      value = cache_get server, cache_key
       return nil if value.nil?
       value = Marshal.load value unless raw
       return value
@@ -654,7 +643,7 @@ class MemCache
     # the server will be marked as down.
 
     CONNECT_TIMEOUT = 0.25
-    
+
     ##
     # The amount of time to wait before attempting to re-establish a
     # connection with a server that is marked dead.
@@ -789,7 +778,6 @@ class MemCache
   # Base MemCache exception class.
 
   class MemCacheError < RuntimeError; end
-  class ReadTimeoutError < MemCacheError; end
 
 end
 
