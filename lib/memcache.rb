@@ -729,7 +729,7 @@ class MemCache
       # Attempt to connect if not already connected.
       begin
         @sock = timeout CONNECT_TIMEOUT do
-          TCPSocket.new @host, @port
+          TCPTimeoutSocket.new @host, @port
         end
         if Socket.constants.include? 'TCP_NODELAY' then
           @sock.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
@@ -781,3 +781,36 @@ class MemCache
 
 end
 
+# Remixation addition. TCPSocket facade class which implements timeouts.
+class TCPTimeoutSocket
+  def initialize(*args)
+    @sock = TCPSocket.new(*args)
+    @len = 0.5
+  end
+  
+  def write(*args)
+    Timeout::timeout(@len, SocketError) do
+      @sock.write(*args)
+    end
+  end
+  
+  def gets(*args)
+    Timeout::timeout(@len, SocketError) do
+      @sock.gets(*args)
+    end
+  end
+  
+  def read(*args)
+    Timeout::timeout(@len, SocketError) do
+      @sock.read(*args)
+    end
+  end
+  
+  def _socket
+    @sock
+  end
+  
+  def method_missing(meth, *args)
+    @sock.__send__(meth, *args)
+  end
+end
