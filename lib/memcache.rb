@@ -747,7 +747,7 @@ class MemCache
       # Attempt to connect if not already connected.
       begin
 
-        TCPTimeoutSocket.new @host, @port
+        @sock = TCPTimeoutSocket.new @host, @port
 
         if Socket.constants.include? 'TCP_NODELAY' then
           @sock.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
