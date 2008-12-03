@@ -594,7 +594,7 @@ class MemCache
       block.call(socket)
       
     rescue Timeout::Error => err
-      server.mark_dead && handle_error(server, err) if retried
+      server.mark_dead(err.message) && handle_error(server, err) if retried
       retried = true
       retry
 
@@ -746,9 +746,9 @@ class MemCache
 
       # Attempt to connect if not already connected.
       begin
-        @sock = timeout CONNECT_TIMEOUT do
-          TCPTimeoutSocket.new @host, @port
-        end
+
+        TCPTimeoutSocket.new @host, @port
+
         if Socket.constants.include? 'TCP_NODELAY' then
           @sock.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
         end
@@ -800,8 +800,10 @@ end
 # Remixation addition. TCPSocket facade class which implements timeouts.
 class TCPTimeoutSocket
   def initialize(*args)
-    @sock = TCPSocket.new(*args)
-    @len = ENV['MEMCACHE_SOCKET_TIMEOUT'].to_f || 0.5
+    Timeout::timeout(CONNECT_TIMEOUT, SocketError) do
+      @sock = TCPSocket.new(*args)
+      @len = ENV['MEMCACHE_SOCKET_TIMEOUT'].to_f || 0.5
+    end
   end
   
   def write(*args)
