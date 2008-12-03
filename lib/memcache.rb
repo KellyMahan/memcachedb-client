@@ -785,7 +785,7 @@ end
 class TCPTimeoutSocket
   def initialize(*args)
     @sock = TCPSocket.new(*args)
-    @len = 0.5
+    @len = ENV['MEMCACHE_SOCKET_TIMEOUT'].to_f || 0.5
   end
   
   def write(*args)
