@@ -800,7 +800,7 @@ end
 # TCPSocket facade class which implements timeouts.
 class TCPTimeoutSocket
   def initialize(*args)
-    Timeout::timeout(CONNECT_TIMEOUT, SocketError) do
+    Timeout::timeout(MemCache::Server::CONNECT_TIMEOUT, SocketError) do
       @sock = TCPSocket.new(*args)
       @len = ENV['MEMCACHE_SOCKET_TIMEOUT'].to_f || 0.5
     end
