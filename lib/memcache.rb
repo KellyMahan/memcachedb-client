@@ -784,7 +784,7 @@ class MemCache
       @sock   = nil
       @retry  = Time.now + RETRY_DELAY
 
-      @status = sprintf "DEAD: %s, will retry at %s", reason, @retry
+      @status = sprintf "#{@host} DEAD: %s, will retry at %s", @host, reason, @retry
     end
 
   end
