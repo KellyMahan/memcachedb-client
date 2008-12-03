@@ -593,10 +593,9 @@ class MemCache
       
       block.call(socket)
       
-    rescue Timeout::Error => err
-      server.mark_dead(err.message) && handle_error(server, err) if retried
-      retried = true
-      retry
+    rescue SocketError => err
+      server.mark_dead(err.message)
+      handle_error(server, err)
 
     rescue MemCacheError, SocketError, SystemCallError, IOError => err
       handle_error(server, err) if retried || socket.nil?
