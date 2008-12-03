@@ -27,6 +27,7 @@ class MemCache
     :namespace   => nil,
     :readonly    => false,
     :multithread => false,
+    :failover      => false
   }
 
   ##
@@ -61,6 +62,10 @@ class MemCache
 
   attr_reader :servers
 
+  ##
+  # Whether this client should failover reads and writes to another server
+
+  attr_accessor :failover
   ##
   # Accepts a list of +servers+ and a list of +opts+.  +servers+ may be
   # omitted.  See +servers=+ for acceptable server list arguments.
@@ -97,6 +102,7 @@ class MemCache
     @namespace   = opts[:namespace]
     @readonly    = opts[:readonly]
     @multithread = opts[:multithread]
+    @failover      = opts[:failover]
     @mutex       = Mutex.new if @multithread
     @buckets     = []
     self.servers = servers
@@ -446,7 +452,7 @@ class MemCache
   ##
   # Pick a server to handle the request based on a hash of the key.
 
-  def get_server_for_key(key)
+  def get_server_for_key(key, options = {})
     raise ArgumentError, "illegal character in key #{key.inspect}" if
       key =~ /\s/
     raise ArgumentError, "key too long #{key.inspect}" if key.length > 250
@@ -454,13 +460,17 @@ class MemCache
     return @servers.first if @servers.length == 1
 
     hkey = hash_for key
-
-    20.times do |try|
-      server = @buckets[hkey % @buckets.compact.size]
-      return server if server.alive?
-      hkey += hash_for "#{try}#{key}"
+    
+    if @failover
+      20.times do |try|
+        server = @buckets[hkey % @buckets.compact.size]
+        return server if server.alive?
+        hkey += hash_for "#{try}#{key}"
+      end
+    else
+      return server
     end
-
+    
     raise MemCacheError, "No servers available"
   end
 
@@ -572,14 +582,22 @@ class MemCache
   def with_socket_management(server, &block)
     @mutex.lock if @multithread
     retried = false
+    
     begin
       socket = server.socket
 
       # Raise an IndexError to show this server is out of whack. If were inside
       # a with_server block, we'll catch it and attempt to restart the operation.
+      
       raise IndexError, "No connection to server (#{server.status})" if socket.nil?
-
+      
       block.call(socket)
+      
+    rescue Timeout::Error => err
+      server.mark_dead && handle_error(server, err) if retried
+      retried = true
+      retry
+
     rescue MemCacheError, SocketError, SystemCallError, IOError => err
       handle_error(server, err) if retried || socket.nil?
       retried = true
@@ -758,8 +776,6 @@ class MemCache
     ensure
       @mutex.unlock if @multithread
     end
-
-    private
 
     ##
     # Mark the server as dead and close its socket.
