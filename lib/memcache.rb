@@ -468,7 +468,7 @@ class MemCache
         hkey += hash_for "#{try}#{key}"
       end
     else
-      return server
+      return @buckets[hkey % @buckets.compact.size]
     end
     
     raise MemCacheError, "No servers available"
@@ -797,7 +797,7 @@ class MemCache
 
 end
 
-# Remixation addition. TCPSocket facade class which implements timeouts.
+# TCPSocket facade class which implements timeouts.
 class TCPTimeoutSocket
   def initialize(*args)
     Timeout::timeout(CONNECT_TIMEOUT, SocketError) do
