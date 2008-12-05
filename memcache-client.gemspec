@@ -9,6 +9,6 @@ Gem::Specification.new do |s|
 
 	s.require_path = 'lib'
 
-	s.files = ["README.txt", "License.txt", "History.txt", "Rakefile", "lib/memcache.rb", "lib/memcache_util.rb"]
+	s.files = ["README.txt", "LICENSE.txt", "History.txt", "Rakefile", "lib/memcache.rb", "lib/memcache_util.rb"]
 	s.test_files = ["test/test_mem_cache.rb"]
 end
