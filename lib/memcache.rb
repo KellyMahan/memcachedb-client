@@ -666,7 +666,7 @@ class MemCache
     # If a response isn't received within this time limit,
     # the server will be marked as down.
 
-    SOCKET_TIMEOUT = 0.5
+    SOCKET_TIMEOUT = 0.25
 
     ##
     # The amount of time to wait before attempting to re-establish a
@@ -808,7 +808,7 @@ class TCPTimeoutSocket
   def initialize(*args)
     Timeout::timeout(MemCache::Server::CONNECT_TIMEOUT, SocketError) do
       @sock = TCPSocket.new(*args)
-      @len = MemCache::Server::SOCKET_TIMEOUT.to_f || 0.5
+      @len = MemCache::Server::SOCKET_TIMEOUT
     end
   end
   
