@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
 	s.name = 'memcache-client'
-	s.version = '1.5.0.5'
+	s.version = '1.5.0.6'
 	s.authors = ['Eric Hodel', 'Robert Cottrell', 'Mike Perham']
 	s.email = 'mperham@gmail.com'
 	s.homepage = 'http://github.com/fiveruns/memcache-client'
