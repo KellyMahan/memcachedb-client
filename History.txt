@@ -1,4 +1,11 @@
-= Unreleased
+= 1.6.0
+
+* First official release since 1.5.0.  Thanks to Eric Hodel for turning the project to me!
+
+* Implement socket timeouts, should fix rare cases of very bad things happening
+  in production at 37signals and FiveRuns. (jseirles)
+
+* New project home page: http://github.com/mperham/memcache-client
 
 * Implement a consistent hashing algorithm, as described in libketama.
   This dramatically reduces the cost of adding or removing servers dynamically
@@ -7,7 +14,7 @@
   Take a scenario where we add a fourth server.  With a dumb modulo algorithm, about
   25% of the keys will map to the same server.  In other words, 75% of your memcached
   content suddenly becomes invalid.  With a consistent algorithm, 75% of the keys
-  will map to the same server as before - only 25% will be invalidated.
+  will map to the same server as before - only 25% will be invalidated. (mperham)
 
 = 1.5.0.5
 

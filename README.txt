@@ -1,21 +1,20 @@
 = memcache-client
 
-This is the FiveRuns fork of seattle.rb's memcache-client 1.5.0.  We've fixed several bugs
-which are in that version.
+A pure ruby library for accessing memcached.
 
 Rubyforge Project:
 
 http://rubyforge.org/projects/seattlerb
 
-Documentation:
+Source:
 
-http://seattlerb.org/memcache-client
+http://github.com/mperham/memcache-client
 
 == Installing memcache-client
 
 Just install the gem:
 
-  $ sudo gem install fiveruns-memcache-client --source http://gems.github.com
+  $ sudo gem install memcache-client
 
 == Using memcache-client
 
@@ -28,21 +27,20 @@ Or with multiple servers:
   CACHE = MemCache.new %w[one.example.com:11211 two.example.com:11211],
                        :namespace => 'my_namespace'
 
-See MemCache.new for details.
+See MemCache.new for details.  Please note memcache-client is not thread-safe
+by default.  You should create a separate instance for each thread in your
+process.
 
-=== Using memcache-client with Rails
+== Using memcache-client with Rails
 
-Rails will automatically load the memcache-client gem, but you may
-need to uninstall Ruby-memcache, I don't know which one will get
-picked by default.
+There's no need to use memcache-client directly from Rails.  Rails 2.1+ includes
+a basic caching library which can be used with memcached.  See ActiveSupport::Cache::Store
+for more details.
 
-Add your environment-specific caches to config/environment/*.  If you run both
-development and production on the same memcached server sets, be sure
-to use different namespaces.  Be careful when running tests using
-memcache, you may get strange results.  It will be less of a headache
-to simply use a readonly memcache when testing.
+== Questions?
 
-memcache-client also comes with a wrapper called Cache in memcache_util.rb for
-use with Rails.  To use it be sure to assign your memcache connection to
-CACHE.  Cache returns nil on all memcache errors so you don't have to rescue
-the errors yourself.  It has #get, #put and #delete module functions.
+memcache-client is maintained by Mike Perham.
+
+Email: mperham@gmail.com
+Twitter: mperham
+WWW: http://mikeperham.com
