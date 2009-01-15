@@ -19,7 +19,7 @@ class MemCache
   ##
   # The version of MemCache you are using.
 
-  VERSION = '1.5.0.7'
+  VERSION = '1.6.0'
 
   ##
   # Default options for the cache object.
@@ -99,7 +99,6 @@ class MemCache
     @readonly    = opts[:readonly]
     @multithread = opts[:multithread]
     @mutex       = Mutex.new if @multithread
-    @buckets     = []
     self.servers = servers
   end
 
@@ -107,8 +106,8 @@ class MemCache
   # Returns a string representation of the cache object.
 
   def inspect
-    "<MemCache: %d servers, %d buckets, ns: %p, ro: %p>" %
-      [@servers.length, @buckets.length, @namespace, @readonly]
+    "<MemCache: %d servers, ns: %p, ro: %p>" %
+      [@servers.length, @namespace, @readonly]
   end
 
   ##
@@ -454,7 +453,7 @@ class MemCache
   ##
   # Pick a server to handle the request based on a hash of the key.
 
-  def get_server_for_key(key)
+  def get_server_for_key(key, options = {})
     raise ArgumentError, "illegal character in key #{key.inspect}" if
       key =~ /\s/
     raise ArgumentError, "key too long #{key.inspect}" if key.length > 250
@@ -468,7 +467,7 @@ class MemCache
       return server if server.alive?
       hkey = hash_for "#{try}#{key}"
     end
-
+    
     raise MemCacheError, "No servers available"
   end
 
@@ -572,14 +571,21 @@ class MemCache
   def with_socket_management(server, &block)
     @mutex.lock if @multithread
     retried = false
+    
     begin
       socket = server.socket
 
       # Raise an IndexError to show this server is out of whack. If were inside
       # a with_server block, we'll catch it and attempt to restart the operation.
+      
       raise IndexError, "No connection to server (#{server.status})" if socket.nil?
-
+      
       block.call(socket)
+      
+    rescue SocketError => err
+      server.mark_dead(err.message)
+      handle_error(server, err)
+
     rescue MemCacheError, SocketError, SystemCallError, IOError => err
       handle_error(server, err) if retried || socket.nil?
       retried = true
@@ -680,6 +686,13 @@ class MemCache
     CONNECT_TIMEOUT = 0.25
 
     ##
+    # The amount of time to wait for a response from a memcached server.
+    # If a response isn't received within this time limit,
+    # the server will be marked as down.
+
+    SOCKET_TIMEOUT = 0.25
+
+    ##
     # The amount of time to wait before attempting to re-establish a
     # connection with a server that is marked dead.
 
@@ -764,9 +777,9 @@ class MemCache
 
       # Attempt to connect if not already connected.
       begin
-        @sock = timeout CONNECT_TIMEOUT do
-          TCPSocket.new @host, @port
-        end
+
+        @sock = TCPTimeoutSocket.new @host, @port
+
         if Socket.constants.include? 'TCP_NODELAY' then
           @sock.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
         end
@@ -795,8 +808,6 @@ class MemCache
       @mutex.unlock if @multithread
     end
 
-    private
-
     ##
     # Mark the server as dead and close its socket.
 
@@ -805,7 +816,7 @@ class MemCache
       @sock   = nil
       @retry  = Time.now + RETRY_DELAY
 
-      @status = sprintf "DEAD: %s, will retry at %s", reason, @retry
+      @status = sprintf "%s:%s DEAD: %s, will retry at %s", @host, @port, reason, @retry
     end
 
   end
@@ -838,3 +849,38 @@ class MemCache
   end
 end
 
+# TCPSocket facade class which implements timeouts.
+class TCPTimeoutSocket
+  def initialize(*args)
+    Timeout::timeout(MemCache::Server::CONNECT_TIMEOUT, SocketError) do
+      @sock = TCPSocket.new(*args)
+      @len = MemCache::Server::SOCKET_TIMEOUT
+    end
+  end
+  
+  def write(*args)
+    Timeout::timeout(@len, SocketError) do
+      @sock.write(*args)
+    end
+  end
+  
+  def gets(*args)
+    Timeout::timeout(@len, SocketError) do
+      @sock.gets(*args)
+    end
+  end
+  
+  def read(*args)
+    Timeout::timeout(@len, SocketError) do
+      @sock.read(*args)
+    end
+  end
+  
+  def _socket
+    @sock
+  end
+  
+  def method_missing(meth, *args)
+    @sock.__send__(meth, *args)
+  end
+end
