@@ -2,10 +2,6 @@
 
 A pure ruby library for accessing memcached.
 
-Rubyforge Project:
-
-http://rubyforge.org/projects/seattlerb
-
 Source:
 
 http://github.com/mperham/memcache-client
@@ -33,13 +29,14 @@ process.
 
 == Using memcache-client with Rails
 
-There's no need to use memcache-client directly from Rails.  Rails 2.1+ includes
+There's no need to use memcache-client in a Rails application.  Rails 2.1+ includes
 a basic caching library which can be used with memcached.  See ActiveSupport::Cache::Store
 for more details.
 
 == Questions?
 
-memcache-client is maintained by Mike Perham.
+memcache-client is maintained by Mike Perham and was originally written by Bob Cottrell, 
+Eric Hodel and the seattle.rb crew.
 
 Email: mperham@gmail.com
 Twitter: mperham
