@@ -5,7 +5,7 @@ require 'rubygems'
 begin
   gem 'flexmock'
   require 'flexmock/test_unit'
-rescue => e
+rescue LoadError => e
   puts "Some tests require flexmock, please run `gem install flexmock`"
 end
 
@@ -42,6 +42,17 @@ class FakeSocket
 
 end
 
+class Test::Unit::TestCase
+  def requirement(bool, msg)
+    if bool
+      yield
+    else
+      puts msg
+      assert true
+    end
+  end
+end
+
 class FakeServer
 
   attr_reader :host, :port, :socket
@@ -70,27 +81,30 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_consistent_hashing
-    flexmock(MemCache::Server).new_instances.should_receive(:alive?).and_return(true)
+    requirement(self.respond_to?(:flexmock), 'Flexmock is required to run this test') do
 
-    # Setup a continuum of two servers
-    @cache.servers = ['mike1', 'mike2', 'mike3']
+      flexmock(MemCache::Server).new_instances.should_receive(:alive?).and_return(true)
 
-    keys = []
-    1000.times do |idx|
-      keys << idx.to_s
+      # Setup a continuum of two servers
+      @cache.servers = ['mike1', 'mike2', 'mike3']
+
+      keys = []
+      1000.times do |idx|
+        keys << idx.to_s
+      end
+
+      before_continuum = keys.map {|key| @cache.get_server_for_key(key) }
+
+      @cache.servers = ['mike1', 'mike2', 'mike3', 'mike4']
+
+      after_continuum = keys.map {|key| @cache.get_server_for_key(key) }
+
+      same_count = before_continuum.zip(after_continuum).find_all {|a| a[0].host == a[1].host }.size
+
+      # With continuum, we should see about 75% of the keys map to the same server
+      # With modulo, we would see about 25%.
+      assert same_count > 700
     end
-
-    before_continuum = keys.map {|key| @cache.get_server_for_key(key) }
-
-    @cache.servers = ['mike1', 'mike2', 'mike3', 'mike4']
-
-    after_continuum = keys.map {|key| @cache.get_server_for_key(key) }
-
-    same_count = before_continuum.zip(after_continuum).find_all {|a| a[0].host == a[1].host }.size
-
-    # With continuum, we should see about 75% of the keys map to the same server
-    # With modulo, we would see about 25%.
-    assert same_count > 700
   end
 
   def test_cache_get

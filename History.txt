@@ -1,6 +1,6 @@
 = 1.6.0
 
-* First official release since 1.5.0.  Thanks to Eric Hodel for turning the project to me!
+* First official release since 1.5.0.  Thanks to Eric Hodel for turning over the project to me!
 
 * Implement socket timeouts, should fix rare cases of very bad things happening
   in production at 37signals and FiveRuns. (jseirles)
