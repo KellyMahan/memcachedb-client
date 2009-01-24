@@ -20,3 +20,7 @@ end
 Rake::TestTask.new
 
 task :default => :test
+
+task :rcov do
+  `rcov -Ilib test/*.rb`
+end
