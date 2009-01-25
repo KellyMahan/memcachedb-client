@@ -6,7 +6,6 @@ require 'timeout'
 require 'zlib'
 require 'digest/sha1'
 
-require 'rubygems'
 require 'continuum'
 
 ##
