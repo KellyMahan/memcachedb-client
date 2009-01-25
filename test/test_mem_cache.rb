@@ -57,18 +57,21 @@ class Test::Unit::TestCase
   end
   
   def xprofile(name, &block)
+    a = Time.now
     block.call
+    Time.now - a
   end
 
   def profile(name, &block)
     require 'ruby-prof'
     a = Time.now
     result = RubyProf.profile(&block)
-    puts "Operation complete in #{Time.now - a} sec"
+    time = Time.now - a
     printer = RubyProf::GraphHtmlPrinter.new(result)
     File.open("#{name}.html", 'w') do |f|
       printer.print(f, :min_percent=>1)
     end
+    time
   end
   
 end
@@ -99,18 +102,28 @@ class TestMemCache < Test::Unit::TestCase
   def setup
     @cache = MemCache.new 'localhost:1', :namespace => 'my_namespace'
   end
-  
+
   def test_performance
     requirement(memcached_running?, 'A real memcached server must be running for performance testing') do
       host = Socket.gethostname
+
       cache = MemCache.new(['localhost:11211',"#{host}:11211"])
       cache.add('a', 1, 120)
-      val = nil
-      xprofile 'get' do
+      with = xprofile 'get' do
         1000.times do
           cache.get('a')
         end
       end
+
+      cache = MemCache.new(['localhost:11211',"#{host}:11211"], :timeout => false)
+      cache.add('a', 1, 120)
+      without = xprofile 'get' do
+        1000.times do
+          cache.get('a')
+        end
+      end
+
+      assert without < with
     end
   end
 

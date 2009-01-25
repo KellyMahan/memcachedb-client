@@ -30,6 +30,7 @@ class MemCache
     :namespace   => nil,
     :readonly    => false,
     :multithread => false,
+    :timeout     => 0.25,
   }
 
   ##
@@ -56,6 +57,12 @@ class MemCache
   # The servers this client talks to.  Play at your own peril.
 
   attr_reader :servers
+
+  ##
+  # Socket timeout limit with this client, defaults to 0.25 sec.
+  # Set to nil to disable timeouts.
+
+  attr_reader :timeout
 
   ##
   # Accepts a list of +servers+ and a list of +opts+.  +servers+ may be
@@ -93,6 +100,7 @@ class MemCache
     @namespace   = opts[:namespace]
     @readonly    = opts[:readonly]
     @multithread = opts[:multithread]
+    @timeout     = opts[:timeout]
     @mutex       = Mutex.new if @multithread
     self.servers = servers
   end
@@ -666,13 +674,6 @@ class MemCache
     CONNECT_TIMEOUT = 0.25
 
     ##
-    # The amount of time to wait for a response from a memcached server.
-    # If a response isn't received within this time limit,
-    # the server will be marked as down.
-
-    SOCKET_TIMEOUT = 0.25
-
-    ##
     # The amount of time to wait before attempting to re-establish a
     # connection with a server that is marked dead.
 
@@ -723,6 +724,7 @@ class MemCache
       @sock   = nil
       @retry  = nil
       @status = 'NOT CONNECTED'
+      @timeout = memcache.timeout
     end
 
     ##
@@ -757,7 +759,7 @@ class MemCache
 
       # Attempt to connect if not already connected.
       begin
-        @sock = TCPTimeoutSocket.new @host, @port
+        @sock = @timeout ? TCPTimeoutSocket.new(@host, @port, @timeout) : TCPSocket.new(@host, @port)
 
         if Socket.constants.include? 'TCP_NODELAY' then
           @sock.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
@@ -809,10 +811,11 @@ end
 
 # TCPSocket facade class which implements timeouts.
 class TCPTimeoutSocket
-  def initialize(*args)
+  
+  def initialize(host, port, timeout)
     Timeout::timeout(MemCache::Server::CONNECT_TIMEOUT, SocketError) do
-      @sock = TCPSocket.new(*args)
-      @len = MemCache::Server::SOCKET_TIMEOUT
+      @sock = TCPSocket.new(host, port)
+      @len = timeout
     end
   end
   
@@ -838,7 +841,11 @@ class TCPTimeoutSocket
     @sock
   end
   
-  def method_missing(meth, *args)
-    @sock.__send__(meth, *args)
+  def setsockopt(*args)
+    @sock.setsockopt(*args)
+  end
+  
+  def closed?
+    @sock.closed?
   end
 end
