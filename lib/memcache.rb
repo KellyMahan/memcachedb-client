@@ -3,9 +3,11 @@ $TESTING = defined?($TESTING) && $TESTING
 require 'socket'
 require 'thread'
 require 'timeout'
-require 'rubygems'
 require 'zlib'
 require 'digest/sha1'
+
+require 'rubygems'
+require 'continuum'
 
 ##
 # A Ruby client library for memcached.
@@ -39,13 +41,6 @@ class MemCache
   # Default memcached server weight.
 
   DEFAULT_WEIGHT = 1
-
-  ##
-  # The amount of time to wait for a response from a memcached server.  If a
-  # response is not completed within this time, the connection to the server
-  # will be closed and an error will be raised.
-
-  attr_accessor :request_timeout
 
   ##
   # The namespace for this instance
@@ -463,7 +458,8 @@ class MemCache
     hkey = hash_for(key)
 
     20.times do |try|
-      server = binary_search(@continuum, hkey) { |e| e.value }.server
+      entryidx = Continuum.binary_search(@continuum, hkey)
+      server = @continuum[entryidx].server
       return server if server.alive?
       hkey = hash_for "#{try}#{key}"
     end
@@ -646,7 +642,7 @@ class MemCache
       entry_count_for(server, servers.size, total_weight).times do |idx|
         hash = Digest::SHA1.hexdigest("#{server.host}:#{server.port}:#{idx}")
         value = Integer("0x#{hash[0..7]}")
-        continuum << ContinuumEntry.new(value, server)
+        continuum << Continuum::Entry.new(value, server)
       end
     end
 
@@ -654,23 +650,7 @@ class MemCache
   end
 
   def entry_count_for(server, total_servers, total_weight)
-    ((total_servers * ContinuumEntry::POINTS_PER_SERVER * server.weight) / Float(total_weight)).floor
-  end
-
-  class ContinuumEntry
-    POINTS_PER_SERVER = 160 # this is the default in libmemcached
-
-    attr_reader :value
-    attr_reader :server
-
-    def initialize(val, srv)
-      @value = val
-      @server = srv
-    end
-
-    def inspect
-      "<#{value}, #{server.host}:#{server.port}>"
-    end
+    ((total_servers * Continuum::POINTS_PER_SERVER * server.weight) / Float(total_weight)).floor
   end
 
   ##
@@ -777,7 +757,6 @@ class MemCache
 
       # Attempt to connect if not already connected.
       begin
-
         @sock = TCPTimeoutSocket.new @host, @port
 
         if Socket.constants.include? 'TCP_NODELAY' then
@@ -826,27 +805,6 @@ class MemCache
 
   class MemCacheError < RuntimeError; end
 
-
-  # Find the closest element in Array less than or equal to value. 
-  def binary_search(ary, value, &block)
-    upper = ary.size - 1
-    lower = 0
-    idx = 0
-
-    result = while(lower <= upper) do
-      idx = (lower + upper) / 2
-      comp = block.call(ary[idx]) <=> value
- 
-      if comp == 0
-        break idx
-      elsif comp > 0
-        upper = idx - 1
-      else
-        lower = idx + 1
-      end
-    end
-    result ? ary[result] : ary[upper]
-  end
 end
 
 # TCPSocket facade class which implements timeouts.

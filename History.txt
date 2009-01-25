@@ -1,11 +1,14 @@
 = 1.6.0
 
 * First official release since 1.5.0.  Thanks to Eric Hodel for turning over the project to me!
+  New project home page: http://github.com/mperham/memcache-client
 
 * Implement socket timeouts, should fix rare cases of very bad things happening
-  in production at 37signals and FiveRuns. (jseirles)
+  in production at 37signals and FiveRuns.  (jseirles)
 
-* New project home page: http://github.com/mperham/memcache-client
+* Toggle socket timeout support.  Socket timeout has a significant performance 
+  penalty (approx 3x slower than without).  You can turn off the timeouts if you 
+  need absolute performance, but by default timeouts are enabled. (mperham)
 
 * Implement a consistent hashing algorithm, as described in libketama.
   This dramatically reduces the cost of adding or removing servers dynamically
@@ -15,6 +18,11 @@
   25% of the keys will map to the same server.  In other words, 75% of your memcached
   content suddenly becomes invalid.  With a consistent algorithm, 75% of the keys
   will map to the same server as before - only 25% will be invalidated. (mperham)
+
+* Implement continuum binary search in native code for performance reasons.  Pure ruby
+  is available for platforms like JRuby or Rubinius which can't use C extensions. (mperham)
+  
+* Fix #add with raw=true (iamaleksey)
 
 = 1.5.0.5
 

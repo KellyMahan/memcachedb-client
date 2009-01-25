@@ -51,6 +51,26 @@ class Test::Unit::TestCase
       assert true
     end
   end
+  
+  def memcached_running?
+    TCPSocket.new('localhost', 11211) rescue false
+  end
+  
+  def xprofile(name, &block)
+    block.call
+  end
+
+  def profile(name, &block)
+    require 'ruby-prof'
+    a = Time.now
+    result = RubyProf.profile(&block)
+    puts "Operation complete in #{Time.now - a} sec"
+    printer = RubyProf::GraphHtmlPrinter.new(result)
+    File.open("#{name}.html", 'w') do |f|
+      printer.print(f, :min_percent=>1)
+    end
+  end
+  
 end
 
 class FakeServer
@@ -78,6 +98,20 @@ class TestMemCache < Test::Unit::TestCase
 
   def setup
     @cache = MemCache.new 'localhost:1', :namespace => 'my_namespace'
+  end
+  
+  def test_performance
+    requirement(memcached_running?, 'A real memcached server must be running for performance testing') do
+      host = Socket.gethostname
+      cache = MemCache.new(['localhost:11211',"#{host}:11211"])
+      cache.add('a', 1, 120)
+      val = nil
+      xprofile 'get' do
+        1000.times do
+          cache.get('a')
+        end
+      end
+    end
   end
 
   def test_consistent_hashing
@@ -660,6 +694,19 @@ class TestMemCache < Test::Unit::TestCase
     @cache.add 'key', 'value', 0, true
 
     expected = "add my_namespace:key 0 0 5\r\nvalue\r\n"
+    assert_equal expected, server.socket.written.string
+  end
+
+  def test_add_raw_int
+    server = FakeServer.new
+    server.socket.data.write "STORED\r\n"
+    server.socket.data.rewind
+    @cache.servers = []
+    @cache.servers << server
+
+    @cache.add 'key', 12, 0, true
+
+    expected = "add my_namespace:key 0 0 2\r\n12\r\n"
     assert_equal expected, server.socket.written.string
   end
 
