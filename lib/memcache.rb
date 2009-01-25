@@ -284,7 +284,7 @@ class MemCache
     raise MemCacheError, "Update of readonly cache" if @readonly
     with_server(key) do |server, cache_key|
       value = Marshal.dump value unless raw
-      command = "add #{cache_key} 0 #{expiry} #{value.size}\r\n#{value}\r\n"
+      command = "add #{cache_key} 0 #{expiry} #{value.to_s.size}\r\n#{value}\r\n"
 
       with_socket_management(server) do |socket|
         socket.write command
