@@ -31,6 +31,7 @@ class MemCache
     :multithread => false,
     :failover    => true,
     :timeout     => 0.25,
+    :logger      => nil,
   }
 
   ##
@@ -71,10 +72,9 @@ class MemCache
   attr_reader :failover
 
   ##
-  # Log errors to the following IO stream, defaults to STDOUT,
-  # set to nil to disable logging.
+  # Log debug/info/warn/error to the given Logger, defaults to nil.
 
-  attr_accessor :logger
+  attr_reader :logger
 
   ##
   # Accepts a list of +servers+ and a list of +opts+.  +servers+ may be
@@ -89,7 +89,7 @@ class MemCache
   #                  first server is down?  Defaults to true.
   #   [:timeout]     Time to use as the socket read timeout.  Defaults to 0.25 sec,
   #                  set to nil to disable timeouts (this is a major performance penalty in Ruby 1.8).
-  #
+  #   [:logger]      Logger to use for info/debug output, defaults to nil
   # Other options are ignored.
 
   def initialize(*args)
@@ -118,8 +118,11 @@ class MemCache
     @multithread = opts[:multithread]
     @timeout     = opts[:timeout]
     @failover    = opts[:failover]
+    @logger      = opts[:logger]
     @mutex       = Mutex.new if @multithread
-    @logger      = $stdout
+
+    logger.info { "memcache-client #{VERSION} #{Array(servers).inspect}" } if logger
+
     self.servers = servers
   end
 
@@ -167,6 +170,8 @@ class MemCache
       end
     end
 
+    logger.debug { "Servers now: #{@servers.inspect}" } if logger
+
     # There's no point in doing this if there's only one server
     @continuum = create_continuum_for(@servers) if @servers.size > 1
 
@@ -194,6 +199,7 @@ class MemCache
   def get(key, raw = false)
     with_server(key) do |server, cache_key|
       value = cache_get server, cache_key
+      logger.debug { "GET #{key} from #{server.inspect}: #{value ? value.to_s.size : 'nil'}" } if logger
       return nil if value.nil?
       value = Marshal.load value unless raw
       return value
@@ -274,6 +280,7 @@ class MemCache
     with_server(key) do |server, cache_key|
 
       value = Marshal.dump value unless raw
+      logger.debug { "SET #{key} to #{server.inspect}: #{value ? value.to_s.size : 'nil'}" } if logger
       command = "set #{cache_key} 0 #{expiry} #{value.to_s.size}\r\n#{value}\r\n"
 
       with_socket_management(server) do |socket|
@@ -303,6 +310,7 @@ class MemCache
     raise MemCacheError, "Update of readonly cache" if @readonly
     with_server(key) do |server, cache_key|
       value = Marshal.dump value unless raw
+      logger.debug { "ADD #{key} to #{server}: #{value ? value.to_s.size : 'nil'}" } if logger
       command = "add #{cache_key} 0 #{expiry} #{value.to_s.size}\r\n#{value}\r\n"
 
       with_socket_management(server) do |socket|
@@ -623,7 +631,7 @@ class MemCache
       yield server, cache_key
     rescue IndexError => e
       if !retried && @servers.size > 1
-        logger.puts "Connection to server #{server.inspect} DIED! Retrying operation..." if logger
+        logger.info { "Connection to server #{server.inspect} DIED! Retrying operation..." } if logger
         retried = true
         retry
       end
@@ -742,6 +750,7 @@ class MemCache
       @retry  = nil
       @status = 'NOT CONNECTED'
       @timeout = memcache.timeout
+      @logger = memcache.logger
     end
 
     ##
@@ -815,6 +824,7 @@ class MemCache
       @retry  = Time.now + RETRY_DELAY
 
       @status = sprintf "%s:%s DEAD: %s, will retry at %s", @host, @port, reason, @retry
+      @logger.info { @status } if @logger
     end
 
   end

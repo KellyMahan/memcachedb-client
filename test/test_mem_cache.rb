@@ -1,4 +1,5 @@
 # encoding: utf-8
+require 'logger'
 require 'stringio'
 require 'test/unit'
 require 'rubygems'
@@ -166,10 +167,9 @@ class TestMemCache < Test::Unit::TestCase
   end
   
   def test_cache_get_with_failover
+    @cache = MemCache.new 'localhost:1', :namespace => 'my_namespace', :logger => Logger.new(STDOUT)
     s1 = FakeServer.new
     s2 = FakeServer.new
-
-    @cache.logger = nil
 
     # Write two messages to the socket to test failover
     s1.socket.data.write "VALUE foo 0 14\r\n\004\b\"\0170123456789\r\n"
@@ -191,8 +191,6 @@ class TestMemCache < Test::Unit::TestCase
     s1 = FakeServer.new
     s2 = FakeServer.new
     
-    @cache.logger = nil
-
     s1.socket.data.write "VALUE foo 0 14\r\n\004\b\"\0170123456789\r\n"
     s1.socket.data.rewind
     s2.socket.data.write "bogus response\r\nbogus response\r\n"
