@@ -29,6 +29,7 @@ class MemCache
     :namespace   => nil,
     :readonly    => false,
     :multithread => false,
+    :failover    => true,
     :timeout     => 0.25,
   }
 
@@ -64,6 +65,18 @@ class MemCache
   attr_reader :timeout
 
   ##
+  # Should the client try to failover to another server if the
+  # first server is down?  Defaults to true.
+
+  attr_reader :failover
+
+  ##
+  # Log errors to the following IO stream, defaults to STDOUT,
+  # set to nil to disable logging.
+
+  attr_accessor :logger
+
+  ##
   # Accepts a list of +servers+ and a list of +opts+.  +servers+ may be
   # omitted.  See +servers=+ for acceptable server list arguments.
   #
@@ -72,6 +85,10 @@ class MemCache
   #   [:namespace]   Prepends this value to all keys added or retrieved.
   #   [:readonly]    Raises an exception on cache writes when true.
   #   [:multithread] Wraps cache access in a Mutex for thread safety.
+  #   [:failover]    Should the client try to failover to another server if the
+  #                  first server is down?  Defaults to true.
+  #   [:timeout]     Time to use as the socket read timeout.  Defaults to 0.25 sec,
+  #                  set to nil to disable timeouts (this is a major performance penalty in Ruby 1.8).
   #
   # Other options are ignored.
 
@@ -100,7 +117,9 @@ class MemCache
     @readonly    = opts[:readonly]
     @multithread = opts[:multithread]
     @timeout     = opts[:timeout]
+    @failover    = opts[:failover]
     @mutex       = Mutex.new if @multithread
+    @logger      = $stdout
     self.servers = servers
   end
 
@@ -140,13 +159,11 @@ class MemCache
         port ||= DEFAULT_PORT
         weight ||= DEFAULT_WEIGHT
         Server.new self, host, port, weight
-      when Server
+      else
         if server.multithread != @multithread then
           raise ArgumentError, "can't mix threaded and non-threaded servers"
         end
         server
-      else
-        raise TypeError, "cannot convert #{server.class} into MemCache::Server"
       end
     end
 
@@ -468,6 +485,7 @@ class MemCache
       entryidx = Continuum.binary_search(@continuum, hkey)
       server = @continuum[entryidx].server
       return server if server.alive?
+      break unless failover
       hkey = hash_for "#{try}#{key}"
     end
     
@@ -574,22 +592,22 @@ class MemCache
   def with_socket_management(server, &block)
     @mutex.lock if @multithread
     retried = false
-    
+
     begin
       socket = server.socket
 
       # Raise an IndexError to show this server is out of whack. If were inside
       # a with_server block, we'll catch it and attempt to restart the operation.
-      
+
       raise IndexError, "No connection to server (#{server.status})" if socket.nil?
-      
+
       block.call(socket)
-      
+
     rescue SocketError => err
       server.mark_dead(err.message)
       handle_error(server, err)
 
-    rescue MemCacheError, SocketError, SystemCallError, IOError => err
+    rescue MemCacheError, SystemCallError, IOError => err
       handle_error(server, err) if retried || socket.nil?
       retried = true
       retry
@@ -605,7 +623,7 @@ class MemCache
       yield server, cache_key
     rescue IndexError => e
       if !retried && @servers.size > 1
-        puts "Connection to server #{server.inspect} DIED! Retrying operation..."
+        logger.puts "Connection to server #{server.inspect} DIED! Retrying operation..." if logger
         retried = true
         retry
       end

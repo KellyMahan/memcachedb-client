@@ -78,20 +78,31 @@ end
 
 class FakeServer
 
-  attr_reader :host, :port, :socket
+  attr_reader :host, :port, :socket, :weight, :multithread, :status
 
   def initialize(socket = nil)
     @closed = false
     @host = 'example.com'
     @port = 11211
     @socket = socket || FakeSocket.new
+    @weight = 1
+    @multithread = false
+    @status = "CONNECTED"
   end
 
   def close
+    # begin
+    #   raise "Already closed"
+    # rescue => e
+    #   puts e.backtrace.join("\n")
+    # end
     @closed = true
+    @socket = nil
+    @status = "NOT CONNECTED"
   end
 
   def alive?
+    # puts "I'm #{@closed ? 'dead' : 'alive'}"
     !@closed
   end
 
@@ -153,6 +164,53 @@ class TestMemCache < Test::Unit::TestCase
       assert same_count > 700
     end
   end
+  
+  def test_cache_get_with_failover
+    s1 = FakeServer.new
+    s2 = FakeServer.new
+
+    @cache.logger = nil
+
+    # Write two messages to the socket to test failover
+    s1.socket.data.write "VALUE foo 0 14\r\n\004\b\"\0170123456789\r\n"
+    s1.socket.data.rewind
+    s2.socket.data.write "bogus response\r\nbogus response\r\n"
+    s2.socket.data.rewind
+
+    @cache.instance_variable_set(:@failover, true)
+    @cache.servers = [s1, s2]
+
+    assert s1.alive?
+    assert s2.alive?
+    @cache.get('foo')
+    assert s1.alive?
+    assert !s2.alive?
+  end
+  
+  def test_cache_get_without_failover
+    s1 = FakeServer.new
+    s2 = FakeServer.new
+    
+    @cache.logger = nil
+
+    s1.socket.data.write "VALUE foo 0 14\r\n\004\b\"\0170123456789\r\n"
+    s1.socket.data.rewind
+    s2.socket.data.write "bogus response\r\nbogus response\r\n"
+    s2.socket.data.rewind
+
+    @cache.instance_variable_set(:@failover, false)
+    @cache.servers = [s1, s2]
+
+    assert s1.alive?
+    assert s2.alive?
+    e = assert_raise MemCache::MemCacheError do
+      @cache.get('foo')
+    end
+    assert s1.alive?
+    assert !s2.alive?
+
+    assert_equal "No servers available", e.message
+  end
 
   def test_cache_get
     server = util_setup_fake_server
@@ -168,11 +226,11 @@ class TestMemCache < Test::Unit::TestCase
     server = util_setup_fake_server
     server.socket.data.string = ''
 
-    e = assert_raise MemCache::MemCacheError do
+    e = assert_raise IndexError do
       @cache.cache_get server, 'my_namespace:key'
     end
 
-    assert_equal "lost connection to example.com:11211", e.message
+    assert_equal "No connection to server (NOT CONNECTED)", e.message
   end
 
   def test_cache_get_bad_state
@@ -185,15 +243,13 @@ class TestMemCache < Test::Unit::TestCase
     @cache.servers = []
     @cache.servers << server
 
-    e = assert_raise MemCache::MemCacheError do
+    e = assert_raise IndexError do
       @cache.cache_get(server, 'my_namespace:key')
     end
 
-    assert_match /#{Regexp.quote 'unexpected response "bogus response\r\n"'}/, e.message
+    assert_match /#{Regexp.quote 'No connection to server (NOT CONNECTED)'}/, e.message
 
     assert !server.alive?
-
-    assert_match /get my_namespace:key\r\n/, server.socket.written.string
   end
 
   def test_cache_get_miss
@@ -228,11 +284,11 @@ class TestMemCache < Test::Unit::TestCase
     server = util_setup_fake_server
     server.socket.data.string = ''
 
-    e = assert_raise MemCache::MemCacheError do
+    e = assert_raise IndexError do
       @cache.cache_get_multi server, 'my_namespace:key'
     end
 
-    assert_equal "lost connection to example.com:11211", e.message
+    assert_equal "No connection to server (NOT CONNECTED)", e.message
   end
 
   def test_cache_get_multi_bad_state
@@ -245,15 +301,13 @@ class TestMemCache < Test::Unit::TestCase
     @cache.servers = []
     @cache.servers << server
 
-    e = assert_raise MemCache::MemCacheError do
+    e = assert_raise IndexError do
       @cache.cache_get_multi server, 'my_namespace:key'
     end
 
-    assert_match /#{Regexp.quote 'unexpected response "bogus response\r\n"'}/, e.message
+    assert_match /#{Regexp.quote 'No connection to server (NOT CONNECTED)'}/, e.message
 
     assert !server.alive?
-
-    assert_match /get my_namespace:key\r\n/, server.socket.written.string
   end
 
   def test_initialize
@@ -575,14 +629,6 @@ class TestMemCache < Test::Unit::TestCase
     @cache.servers = []
     @cache.servers << server
     assert_equal [server], @cache.servers
-  end
-
-  def test_servers_equals_type_error
-    e = assert_raise TypeError do
-      @cache.servers = [Object.new]
-    end
-
-    assert_equal 'cannot convert Object into MemCache::Server', e.message
   end
 
   def test_set
