@@ -858,11 +858,15 @@ class TCPTimeoutSocket
     @sock
   end
   
-  def setsockopt(*args)
-    @sock.setsockopt(*args)
+  def method_missing(meth, *args)
+    @sock.__send__(meth, *args)
   end
   
   def closed?
     @sock.closed?
+  end
+  
+  def close
+    @sock.close
   end
 end
