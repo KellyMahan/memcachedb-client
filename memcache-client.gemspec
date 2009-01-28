@@ -4,8 +4,9 @@ Gem::Specification.new do |s|
 	s.authors = ['Eric Hodel', 'Robert Cottrell', 'Mike Perham']
 	s.email = 'mperham@gmail.com'
 	s.homepage = 'http://github.com/mperham/memcache-client'
-	s.summary = 'A pure Ruby library for accessing memcached.'
+	s.summary = 'A Ruby library for accessing memcached.'
 	s.description = s.summary
+	s.rubyforge_project = 'seattlerb'
 
 	s.require_path = 'lib'
 
