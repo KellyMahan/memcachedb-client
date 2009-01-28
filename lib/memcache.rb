@@ -408,7 +408,7 @@ class MemCache
         while line = socket.gets do
           raise_on_error_response! line
           break if line == "END\r\n"
-          if line =~ /\ASTAT ([\w]+) ([\w\.\:]+)/ then
+          if line =~ /\ASTAT ([\S]+) ([\w\.\:]+)/ then
             name, value = $1, $2
             stats[name] = case name
                           when 'version'
