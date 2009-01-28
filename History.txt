@@ -3,21 +3,25 @@
 * First official release since 1.5.0.  Thanks to Eric Hodel for turning over the project to me!
   New project home page: http://github.com/mperham/memcache-client
 
-* Implement socket timeouts, should fix rare cases of very bad things happening
-  in production at 37signals and FiveRuns.  (jseirles)
-
-* Toggle socket timeout support.  Socket timeout has a significant performance 
-  penalty (approx 3x slower than without).  You can turn off the timeouts if you 
-  need absolute performance, but by default timeouts are enabled. (mperham)
-
 * Implement a consistent hashing algorithm, as described in libketama.
   This dramatically reduces the cost of adding or removing servers dynamically
   as keys are much more likely to map to the same server.
 
-  Take a scenario where we add a fourth server.  With a dumb modulo algorithm, about
+  Take a scenario where we add a fourth server.  With a naive modulo algorithm, about
   25% of the keys will map to the same server.  In other words, 75% of your memcached
   content suddenly becomes invalid.  With a consistent algorithm, 75% of the keys
   will map to the same server as before - only 25% will be invalidated. (mperham)
+
+* Implement socket timeouts, should fix rare cases of very bad things happening
+  in production at 37signals and FiveRuns.  (jseirles)
+
+* Add option to disable socket timeout support.  Socket timeout has a significant performance 
+  penalty (approx 3x slower than without in Ruby 1.8.6).  You can turn off the timeouts if you 
+  need absolute performance, but by default timeouts are enabled. The performance
+  penalty is much lower in Ruby 1.8.7, 1.9 and JRuby.  (mperham)
+
+* Add option to disable server failover.  Failover can lead to "split-brain" caches that 
+  return stale data. (mperham)
 
 * Implement continuum binary search in native code for performance reasons.  Pure ruby
   is available for platforms like JRuby or Rubinius which can't use C extensions. (mperham)
