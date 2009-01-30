@@ -126,14 +126,17 @@ class TestMemCache < Test::Unit::TestCase
           cache.get('a')
         end
       end
+      puts ''
+      puts "1000 gets with socket timeout: #{with} sec"
 
-      cache = MemCache.new(['localhost:11211',"#{host}:11211"], :timeout => false)
+      cache = MemCache.new(['localhost:11211',"#{host}:11211"], :timeout => nil)
       cache.add('a', 1, 120)
       without = xprofile 'get' do
         1000.times do
           cache.get('a')
         end
       end
+      puts "1000 gets without socket timeout: #{without} sec"
 
       assert without < with
     end
@@ -167,7 +170,7 @@ class TestMemCache < Test::Unit::TestCase
   end
   
   def test_cache_get_with_failover
-    @cache = MemCache.new 'localhost:1', :namespace => 'my_namespace', :logger => Logger.new(STDOUT)
+    @cache = MemCache.new 'localhost:1', :namespace => 'my_namespace', :logger => nil#Logger.new(STDOUT)
     s1 = FakeServer.new
     s2 = FakeServer.new
 
