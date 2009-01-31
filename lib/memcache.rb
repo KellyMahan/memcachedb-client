@@ -242,15 +242,20 @@ class MemCache
     results = {}
 
     server_keys.each do |server, keys_for_server|
-      keys_for_server = keys_for_server.join ' '
-      values = cache_get_multi server, keys_for_server
-      values.each do |key, value|
-        results[cache_keys[key]] = Marshal.load value
+      keys_for_server_str = keys_for_server.join ' '
+      begin
+        values = cache_get_multi server, keys_for_server_str
+        values.each do |key, value|
+          results[cache_keys[key]] = Marshal.load value
+        end
+      rescue IndexError => e
+        # Ignore this server and try the others
+        logger.warn { "Unable to retrieve #{keys_for_server.size} elements from #{server.inspect}: #{e.message}"} if logger
       end
     end
 
     return results
-  rescue TypeError, IndexError => err
+  rescue TypeError => err
     handle_error nil, err
   end
 
@@ -612,10 +617,12 @@ class MemCache
       block.call(socket)
 
     rescue SocketError => err
-      server.mark_dead(err.message)
+      logger.warn { "Socket failure: #{err.message}" } if logger
+      server.mark_dead(err)
       handle_error(server, err)
 
     rescue MemCacheError, SystemCallError, IOError => err
+      logger.warn { "Generic failure: #{err.class.name}: #{err.message}" } if logger
       handle_error(server, err) if retried || socket.nil?
       retried = true
       retry
@@ -630,6 +637,7 @@ class MemCache
       server, cache_key = request_setup(key)
       yield server, cache_key
     rescue IndexError => e
+      logger.warn { "Server failed: #{e.class.name}: #{e.message}" } if logger
       if !retried && @servers.size > 1
         logger.info { "Connection to server #{server.inspect} DIED! Retrying operation..." } if logger
         retried = true
@@ -730,6 +738,7 @@ class MemCache
     attr_reader :status
 
     attr_reader :multithread
+    attr_reader :logger
 
     ##
     # Create a new MemCache::Server object for the memcached instance
@@ -793,7 +802,8 @@ class MemCache
         @retry  = nil
         @status = 'CONNECTED'
       rescue SocketError, SystemCallError, IOError, Timeout::Error => err
-        mark_dead err.message
+        logger.warn { "Unable to open socket: #{err.class.name}, #{err.message}" } if logger
+        mark_dead err
       end
 
       return @sock
@@ -818,12 +828,13 @@ class MemCache
     ##
     # Mark the server as dead and close its socket.
 
-    def mark_dead(reason = "Unknown error")
+    def mark_dead(error)
       @sock.close if @sock && !@sock.closed?
       @sock   = nil
       @retry  = Time.now + RETRY_DELAY
 
-      @status = sprintf "%s:%s DEAD: %s, will retry at %s", @host, @port, reason, @retry
+      reason = "#{error.class.name}: #{error.message}"
+      @status = sprintf "%s:%s DEAD (%s), will retry at %s", @host, @port, reason, @retry
       @logger.info { @status } if @logger
     end
 

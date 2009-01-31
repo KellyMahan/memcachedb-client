@@ -169,6 +169,28 @@ class TestMemCache < Test::Unit::TestCase
     end
   end
   
+  def test_get_multi_with_server_failure
+    @cache = MemCache.new 'localhost:1', :namespace => 'my_namespace', :logger => nil #Logger.new(STDOUT)
+    s1 = FakeServer.new
+    s2 = FakeServer.new
+
+    # Write two messages to the socket to test failover
+    s1.socket.data.write "VALUE my_namespace:a 0 14\r\n\004\b\"\0170123456789\r\nEND\r\n"
+    s1.socket.data.rewind
+    s2.socket.data.write "bogus response\r\nbogus response\r\n"
+    s2.socket.data.rewind
+
+    @cache.servers = [s1, s2]
+
+    assert s1.alive?
+    assert s2.alive?
+    # a maps to s1, the rest map to s2
+    value = @cache.get_multi(['foo', 'bar', 'a', 'b', 'c'])
+    assert_equal({'a'=>'0123456789'}, value)
+    assert s1.alive?
+    assert !s2.alive?
+  end
+
   def test_cache_get_with_failover
     @cache = MemCache.new 'localhost:1', :namespace => 'my_namespace', :logger => nil#Logger.new(STDOUT)
     s1 = FakeServer.new
