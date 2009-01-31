@@ -30,7 +30,7 @@ class MemCache
     :readonly    => false,
     :multithread => false,
     :failover    => true,
-    :timeout     => 0.25,
+    :timeout     => 0.5,
     :logger      => nil,
   }
 
