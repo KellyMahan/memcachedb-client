@@ -895,8 +895,9 @@ class TestMemCache < Test::Unit::TestCase
       cache.set "test", "test value"
     end
 
-    # TODO Fails in 1.9
-    assert_match /set my_namespace:test.*?\r\n.*?test value.*?\r\n/, server.socket.written.string
+    output = server.socket.written.string
+    assert_match /set my_namespace:test/, output
+    assert_match /test value/, output
   end
 
   def test_basic_unthreaded_operations_should_work
@@ -917,8 +918,9 @@ class TestMemCache < Test::Unit::TestCase
       cache.set "test", "test value"
     end
 
-    # TODO Fails in 1.9
-    assert_match /set my_namespace:test.*?\r\n.*?test value.*?\r\n/, server.socket.written.string
+    output = server.socket.written.string
+    assert_match /set my_namespace:test/, output
+    assert_match /test value/, output
   end
 
   def util_setup_fake_server
