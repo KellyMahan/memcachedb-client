@@ -280,13 +280,19 @@ class MemCache
   # Warning: Readers should not call this method in the event of a cache miss;
   # see MemCache#add.
 
+  ONE_MB = 1024 * 1024
+
   def set(key, value, expiry = 0, raw = false)
     raise MemCacheError, "Update of readonly cache" if @readonly
     with_server(key) do |server, cache_key|
 
       value = Marshal.dump value unless raw
       logger.debug { "SET #{key} to #{server.inspect}: #{value ? value.to_s.size : 'nil'}" } if logger
-      command = "set #{cache_key} 0 #{expiry} #{value.to_s.size}\r\n#{value}\r\n"
+
+      data = value.to_s
+      raise MemCacheError, "Value too large, memcached can only store 1MB of data per key" if data.size > ONE_MB
+
+      command = "set #{cache_key} 0 #{expiry} #{data.size}\r\n#{data}\r\n"
 
       with_socket_management(server) do |socket|
         socket.write command
