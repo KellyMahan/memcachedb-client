@@ -1,4 +1,11 @@
-= 1.6.2 (upcoming)
+= 1.6.2 (2009-02-04)
+
+* Validate that values are less than one megabyte in size.
+
+* Refactor error handling in get_multi to handle server failures and return what values
+  we could successfully retrieve.
+
+* Add optional logging parameter for debugging and tracing.
 
 * First official release since 1.5.0.  Thanks to Eric Hodel for turning over the project to me!
   New project home page: http://github.com/mperham/memcache-client

@@ -11,16 +11,13 @@ require 'continuum'
 ##
 # A Ruby client library for memcached.
 #
-# This is intended to provide access to basic memcached functionality.  It
-# does not attempt to be complete implementation of the entire API, but it is
-# approaching a complete implementation.
 
 class MemCache
 
   ##
   # The version of MemCache you are using.
 
-  VERSION = '1.6.1'
+  VERSION = '1.6.2'
 
   ##
   # Default options for the cache object.
