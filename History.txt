@@ -1,3 +1,8 @@
+= 1.6.3 (2009-02-10)
+
+* Remove gem native extension in preference to RubyInline.  This allows the gem to install
+and work on JRuby.
+
 = 1.6.2 (2009-02-04)
 
 * Validate that values are less than one megabyte in size.
