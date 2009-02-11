@@ -10,7 +10,7 @@ Gem::Specification.new do |s|
 
 	s.require_path = 'lib'
 
-	s.files = ["README.rdoc", "LICENSE.txt", "History.txt", "Rakefile", "lib/continuum.rb", "lib/memcache.rb", "lib/memcache_util.rb", 'ext/memcache/binary_search.c']
+	s.files = ["README.rdoc", "LICENSE.txt", "History.txt", "Rakefile", "lib/continuum.rb", "lib/memcache.rb", "lib/memcache_util.rb"]
 	s.test_files = ["test/test_mem_cache.rb"]
 	s.add_dependency ['RubyInline']
 end
