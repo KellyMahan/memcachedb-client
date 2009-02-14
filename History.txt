@@ -1,7 +1,7 @@
-= 1.6.3 (2009-02-10)
+= 1.6.3 (2009-02-14)
 
 * Remove gem native extension in preference to RubyInline.  This allows the gem to install
-and work on JRuby.
+and work on JRuby and Ruby 1.8.5 when the native code fails to compile.
 
 = 1.6.2 (2009-02-04)
 
