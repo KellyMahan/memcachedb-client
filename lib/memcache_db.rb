@@ -6,7 +6,7 @@ require 'timeout'
 require 'zlib'
 require 'digest/sha1'
 
-require 'continuum'
+require 'continuum_db'
 
 ##
 # A Ruby client library for memcachedb.
@@ -17,7 +17,7 @@ class MemCacheDb
   ##
   # The version of MemCacheDb you are using.
 
-  VERSION = '1'
+  VERSION = '1.0.1'
 
   ##
   # Default options for the cache object.
