@@ -6,7 +6,6 @@ Gem::Specification.new do |s|
 	s.homepage = 'http://github.com/KellyMahan/memcachedb-client'
 	s.summary = 'A Ruby library for accessing memcachedb. Forked from memcache-client'
 	s.description = s.summary
-	s.rubyforge_project = ''
 
 	s.require_path = 'lib'
 

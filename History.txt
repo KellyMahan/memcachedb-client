@@ -1,3 +1,3 @@
 = 1.0
 
-derived from memcache-client 1.6.3 for use with memcachedb
+derived from memcache-client 1.6.3 http://github.com/mperham for use with memcachedb
