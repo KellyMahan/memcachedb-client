@@ -221,6 +221,29 @@ class MemCacheDb
   #   cache["b"] = 2
   #   cache.get_multi "a", "b" # => { "a" => 1, "b" => 2 }
 
+
+  def get_range(key1, key2, limit=100)
+    raise MemCacheDbError, 'No active servers' unless active?
+
+    results = {}
+
+    begin
+      servers.each do |server|
+        values = cache_rget(server, key1, key2, limit)
+        values.each do |key, value|
+          results[key.gsub(/#{@namespace}\:/,'')] = Marshal.load value
+        end
+      end
+    rescue
+      logger.warn { "Unable to retrieve key range #{key1} to #{key2}"} if logger
+    end
+    return results
+  rescue TypeError => err
+    handle_error nil, err
+  end
+
+
+
   def get_multi(*keys)
     raise MemCacheDbError, 'No active servers' unless active?
 
@@ -576,6 +599,69 @@ class MemCacheDb
       raise MemCacheDbError, "lost connection to #{server.host}:#{server.port}" # TODO: retry here too
     end
   end
+  
+  def cache_rget(server, start_key, end_key, max=100)
+  
+    # rget <start key> <end key> <left openness flag> <right openness flag> <max items>\r\n
+    # 
+    # - <start key> where the query starts.
+    # - <end key>   where the query ends.
+    # - <left openness flag> indicates the openness of left side, 0 means the result includes <start key>, while 1 means not.
+    # - <right openness flag> indicates the openness of right side, 0 means the result includes <end key>, while 1 means not.
+    # - <max items> how many items at most return, max is 100.
+    # 
+    # After this command, the client expects zero or more items, each of
+    # which is received as a text line followed by a data block. After all
+    # the items have been transmitted, the server sends the string
+    # 
+    # "END\r\n"
+    # 
+    # to indicate the end of response.
+    # 
+    # Each item sent by the server looks like this:
+    # 
+    # VALUE <key> <flags> <bytes>\r\n
+    # <data block>\r\n
+    # 
+    # - <key> is the key for the item being sent
+    # 
+    # - <flags> is the flags value set by the storage command
+    # 
+    # - <bytes> is the length of the data block to follow, *not* including
+    #   its delimiting \r\n
+    # 
+    # - <data block> is the data for this item.
+    # 
+    # Notice: all keys in MemcacheDB is sorted alphabetically, so is the return of query result.
+    
+    with_socket_management(server) do |socket|
+      values = {}
+      socket.write "rget #{start_key} #{end_key} 0 0 #{max}\r\n"
+
+      while keyline = socket.gets do
+        return values if keyline == "END\r\n"
+        raise_on_error_response! keyline
+
+        unless keyline =~ /\AVALUE (.+) (.+) (.+)/ then
+          server.close
+          raise MemCacheDbError, "unexpected response #{keyline.inspect}"
+        end
+
+        key, data_length = $1, $3
+        values[$1] = socket.read data_length.to_i
+        socket.read(2) # "\r\n"
+      end
+
+      server.close
+      raise MemCacheDbError, "lost connection to #{server.host}:#{server.port}" # TODO: retry here too
+    end
+  
+    
+    
+  end
+  
+  
+  
 
   ##
   # Performs a raw incr for +cache_key+ from +server+.  Returns nil if not

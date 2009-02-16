@@ -1,3 +1,13 @@
+= 1.1
+
+added get_range method.
+
+example:
+  
+  CACHE.get_range(:a, :z, limit)
+
+  this will return all records between and including a through z with a limit on the records. The max is 100
+  
 = 1.0
 
 derived from memcache-client 1.6.3 http://github.com/mperham for use with memcachedb

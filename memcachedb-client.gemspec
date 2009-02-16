@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
 	s.name = 'memcachedb-client'
-	s.version = '1.0.1'
+	s.version = '1.1.0'
 	s.authors = ['Kelly Mahan']
 	s.email = 'kellymahan@gmail.com'
 	s.homepage = 'http://github.com/KellyMahan/memcachedb-client'
