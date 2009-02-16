@@ -14,13 +14,13 @@ $TESTING = true
 
 require File.dirname(__FILE__) + '/../lib/memcache'
 
-class MemCache
+class MemCacheDb
 
   attr_writer :namespace
 
 end
 
-class FakeSocket
+class FakeSocketDb
 
   attr_reader :written, :data
 
@@ -77,7 +77,7 @@ class Test::Unit::TestCase
   
 end
 
-class FakeServer
+class FakeServerDb
 
   attr_reader :host, :port, :socket, :weight, :multithread, :status
 
@@ -85,7 +85,7 @@ class FakeServer
     @closed = false
     @host = 'example.com'
     @port = 11211
-    @socket = socket || FakeSocket.new
+    @socket = socket || FakeSocketDb.new
     @weight = 1
     @multithread = false
     @status = "CONNECTED"
@@ -109,17 +109,17 @@ class FakeServer
 
 end
 
-class TestMemCache < Test::Unit::TestCase
+class TestMemCacheDb < Test::Unit::TestCase
 
   def setup
-    @cache = MemCache.new 'localhost:1', :namespace => 'my_namespace'
+    @cache = MemCacheDb.new 'localhost:1', :namespace => 'my_namespace'
   end
 
   def test_performance
     requirement(memcached_running?, 'A real memcached server must be running for performance testing') do
       host = Socket.gethostname
 
-      cache = MemCache.new(['localhost:11211',"#{host}:11211"])
+      cache = MemCacheDb.new(['localhost:21201',"#{host}:21201"])
       cache.add('a', 1, 120)
       with = xprofile 'get' do
         1000.times do
@@ -129,7 +129,7 @@ class TestMemCache < Test::Unit::TestCase
       puts ''
       puts "1000 gets with socket timeout: #{with} sec"
 
-      cache = MemCache.new(['localhost:11211',"#{host}:11211"], :timeout => nil)
+      cache = MemCacheDb.new(['localhost:21201',"#{host}:21201"], :timeout => nil)
       cache.add('a', 1, 120)
       without = xprofile 'get' do
         1000.times do
@@ -145,7 +145,7 @@ class TestMemCache < Test::Unit::TestCase
   def test_consistent_hashing
     requirement(self.respond_to?(:flexmock), 'Flexmock is required to run this test') do
 
-      flexmock(MemCache::Server).new_instances.should_receive(:alive?).and_return(true)
+      flexmock(MemCacheDb::Server).new_instances.should_receive(:alive?).and_return(true)
 
       # Setup a continuum of two servers
       @cache.servers = ['mike1', 'mike2', 'mike3']
@@ -170,9 +170,9 @@ class TestMemCache < Test::Unit::TestCase
   end
   
   def test_get_multi_with_server_failure
-    @cache = MemCache.new 'localhost:1', :namespace => 'my_namespace', :logger => nil #Logger.new(STDOUT)
-    s1 = FakeServer.new
-    s2 = FakeServer.new
+    @cache = MemCacheDb.new 'localhost:1', :namespace => 'my_namespace', :logger => nil #Logger.new(STDOUT)
+    s1 = FakeServerDb.new
+    s2 = FakeServerDb.new
 
     # Write two messages to the socket to test failover
     s1.socket.data.write "VALUE my_namespace:a 0 14\r\n\004\b\"\0170123456789\r\nEND\r\n"
@@ -192,9 +192,9 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_cache_get_with_failover
-    @cache = MemCache.new 'localhost:1', :namespace => 'my_namespace', :logger => nil#Logger.new(STDOUT)
-    s1 = FakeServer.new
-    s2 = FakeServer.new
+    @cache = MemCacheDb.new 'localhost:1', :namespace => 'my_namespace', :logger => nil#Logger.new(STDOUT)
+    s1 = FakeServerDb.new
+    s2 = FakeServerDb.new
 
     # Write two messages to the socket to test failover
     s1.socket.data.write "VALUE foo 0 14\r\n\004\b\"\0170123456789\r\n"
@@ -213,8 +213,8 @@ class TestMemCache < Test::Unit::TestCase
   end
   
   def test_cache_get_without_failover
-    s1 = FakeServer.new
-    s2 = FakeServer.new
+    s1 = FakeServerDb.new
+    s2 = FakeServerDb.new
     
     s1.socket.data.write "VALUE foo 0 14\r\n\004\b\"\0170123456789\r\n"
     s1.socket.data.rewind
@@ -226,7 +226,7 @@ class TestMemCache < Test::Unit::TestCase
 
     assert s1.alive?
     assert s2.alive?
-    e = assert_raise MemCache::MemCacheError do
+    e = assert_raise MemCacheDb::MemCacheDbError do
       @cache.get('foo')
     end
     assert s1.alive?
@@ -257,7 +257,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_cache_get_bad_state
-    server = FakeServer.new
+    server = FakeServerDb.new
 
     # Write two messages to the socket to test failover
     server.socket.data.write "bogus response\r\nbogus response\r\n"
@@ -276,10 +276,10 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_cache_get_miss
-    socket = FakeSocket.new
+    socket = FakeSocketDb.new
     socket.data.write "END\r\n"
     socket.data.rewind
-    server = FakeServer.new socket
+    server = FakeServerDb.new socket
 
     assert_equal nil, @cache.cache_get(server, 'my_namespace:key')
 
@@ -315,7 +315,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_cache_get_multi_bad_state
-    server = FakeServer.new
+    server = FakeServerDb.new
 
     # Write two messages to the socket to test failover
     server.socket.data.write "bogus response\r\nbogus response\r\n"
@@ -334,7 +334,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_initialize
-    cache = MemCache.new :namespace => 'my_namespace', :readonly => true
+    cache = MemCacheDb.new :namespace => 'my_namespace', :readonly => true
 
     assert_equal 'my_namespace', cache.namespace
     assert_equal true, cache.readonly?
@@ -342,7 +342,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_initialize_compatible
-    cache = MemCache.new ['localhost:11211', 'localhost:11212'],
+    cache = MemCacheDb.new ['localhost:21201', 'localhost:11212'],
             :namespace => 'my_namespace', :readonly => true
 
     assert_equal 'my_namespace', cache.namespace
@@ -351,7 +351,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_initialize_compatible_no_hash
-    cache = MemCache.new ['localhost:11211', 'localhost:11212']
+    cache = MemCacheDb.new ['localhost:21201', 'localhost:11212']
 
     assert_equal nil, cache.namespace
     assert_equal false, cache.readonly?
@@ -359,7 +359,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_initialize_compatible_one_server
-    cache = MemCache.new 'localhost:11211'
+    cache = MemCacheDb.new 'localhost:21201'
 
     assert_equal nil, cache.namespace
     assert_equal false, cache.readonly?
@@ -368,14 +368,14 @@ class TestMemCache < Test::Unit::TestCase
 
   def test_initialize_compatible_bad_arg
     e = assert_raise ArgumentError do
-      cache = MemCache.new Object.new
+      cache = MemCacheDb.new Object.new
     end
 
     assert_equal 'first argument must be Array, Hash or String', e.message
   end
 
   def test_initialize_multiple_servers
-    cache = MemCache.new %w[localhost:11211 localhost:11212],
+    cache = MemCacheDb.new %w[localhost:21201 localhost:11212],
                          :namespace => 'my_namespace', :readonly => true
 
     assert_equal 'my_namespace', cache.namespace
@@ -386,12 +386,12 @@ class TestMemCache < Test::Unit::TestCase
 
   def test_initialize_too_many_args
     assert_raises ArgumentError do
-      MemCache.new 1, 2, 3
+      MemCacheDb.new 1, 2, 3
     end
   end
 
   def test_decr
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "5\r\n"
     server.socket.data.rewind
 
@@ -407,7 +407,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_decr_not_found
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "NOT_FOUND\r\n"
     server.socket.data.rewind
 
@@ -423,7 +423,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_decr_space_padding
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "5 \r\n"
     server.socket.data.rewind
 
@@ -460,12 +460,12 @@ class TestMemCache < Test::Unit::TestCase
   def test_get_cache_get_IOError
     socket = Object.new
     def socket.write(arg) raise IOError, 'some io error'; end
-    server = FakeServer.new socket
+    server = FakeServerDb.new socket
 
     @cache.servers = []
     @cache.servers << server
 
-    e = assert_raise MemCache::MemCacheError do
+    e = assert_raise MemCacheDb::MemCacheDbError do
       @cache.get 'my_namespace:key'
     end
 
@@ -475,12 +475,12 @@ class TestMemCache < Test::Unit::TestCase
   def test_get_cache_get_SystemCallError
     socket = Object.new
     def socket.write(arg) raise SystemCallError, 'some syscall error'; end
-    server = FakeServer.new socket
+    server = FakeServerDb.new socket
 
     @cache.servers = []
     @cache.servers << server
 
-    e = assert_raise MemCache::MemCacheError do
+    e = assert_raise MemCacheDb::MemCacheDbError do
       @cache.get 'my_namespace:key'
     end
 
@@ -489,7 +489,7 @@ class TestMemCache < Test::Unit::TestCase
 
   def test_get_no_connection
     @cache.servers = 'localhost:1'
-    e = assert_raise MemCache::MemCacheError do
+    e = assert_raise MemCacheDb::MemCacheDbError do
       @cache.get 'key'
     end
 
@@ -498,7 +498,7 @@ class TestMemCache < Test::Unit::TestCase
 
   def test_get_no_servers
     @cache.servers = []
-    e = assert_raise MemCache::MemCacheError do
+    e = assert_raise MemCacheDb::MemCacheDbError do
       @cache.get 'key'
     end
 
@@ -506,7 +506,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_get_multi
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "VALUE my_namespace:key 0 14\r\n"
     server.socket.data.write "\004\b\"\0170123456789\r\n"
     server.socket.data.write "VALUE my_namespace:keyb 0 14\r\n"
@@ -528,7 +528,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_get_raw
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "VALUE my_namespace:key 0 10\r\n"
     server.socket.data.write "0123456789\r\n"
     server.socket.data.write "END\r\n"
@@ -570,7 +570,7 @@ class TestMemCache < Test::Unit::TestCase
   def test_get_server_for_key_no_servers
     @cache.servers = []
 
-    e = assert_raise MemCache::MemCacheError do
+    e = assert_raise MemCacheDb::MemCacheDbError do
       @cache.get_server_for_key 'key'
     end
 
@@ -594,7 +594,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_incr
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "5\r\n"
     server.socket.data.rewind
 
@@ -610,7 +610,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_incr_not_found
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "NOT_FOUND\r\n"
     server.socket.data.rewind
 
@@ -626,7 +626,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_incr_space_padding
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "5 \r\n"
     server.socket.data.rewind
 
@@ -648,14 +648,14 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_servers
-    server = FakeServer.new
+    server = FakeServerDb.new
     @cache.servers = []
     @cache.servers << server
     assert_equal [server], @cache.servers
   end
 
   def test_set
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "STORED\r\n"
     server.socket.data.rewind
     @cache.servers = []
@@ -670,7 +670,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_set_expiry
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "STORED\r\n"
     server.socket.data.rewind
     @cache.servers = []
@@ -684,7 +684,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_set_raw
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "STORED\r\n"
     server.socket.data.rewind
     @cache.servers = []
@@ -697,9 +697,9 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_set_readonly
-    cache = MemCache.new :readonly => true
+    cache = MemCacheDb.new :readonly => true
 
-    e = assert_raise MemCache::MemCacheError do
+    e = assert_raise MemCacheDb::MemCacheDbError do
       cache.set 'key', 'value'
     end
 
@@ -707,7 +707,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_set_too_big
-    server = FakeServer.new
+    server = FakeServerDb.new
 
     # Write two messages to the socket to test failover
     server.socket.data.write "SERVER_ERROR\r\nSERVER_ERROR object too large for cache\r\n"
@@ -716,7 +716,7 @@ class TestMemCache < Test::Unit::TestCase
     @cache.servers = []
     @cache.servers << server
 
-    e = assert_raise MemCache::MemCacheError do
+    e = assert_raise MemCacheDb::MemCacheDbError do
       @cache.set 'key', 'v'
     end
 
@@ -724,7 +724,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_add
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "STORED\r\n"
     server.socket.data.rewind
     @cache.servers = []
@@ -739,7 +739,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_add_exists
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "NOT_STORED\r\n"
     server.socket.data.rewind
     @cache.servers = []
@@ -753,7 +753,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_add_expiry
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "STORED\r\n"
     server.socket.data.rewind
     @cache.servers = []
@@ -767,7 +767,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_add_raw
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "STORED\r\n"
     server.socket.data.rewind
     @cache.servers = []
@@ -780,7 +780,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_add_raw_int
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "STORED\r\n"
     server.socket.data.rewind
     @cache.servers = []
@@ -793,9 +793,9 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_add_readonly
-    cache = MemCache.new :readonly => true
+    cache = MemCacheDb.new :readonly => true
 
-    e = assert_raise MemCache::MemCacheError do
+    e = assert_raise MemCacheDb::MemCacheDbError do
       cache.add 'key', 'value'
     end
 
@@ -803,7 +803,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_delete
-    server = FakeServer.new
+    server = FakeServerDb.new
     @cache.servers = []
     @cache.servers << server
     
@@ -814,7 +814,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_delete_with_expiry
-    server = FakeServer.new
+    server = FakeServerDb.new
     @cache.servers = []
     @cache.servers << server
     
@@ -826,7 +826,7 @@ class TestMemCache < Test::Unit::TestCase
 
   def test_flush_all
     @cache.servers = []
-    3.times { @cache.servers << FakeServer.new }
+    3.times { @cache.servers << FakeServerDb.new }
 
     @cache.flush_all
 
@@ -837,18 +837,18 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_flush_all_failure
-    socket = FakeSocket.new
+    socket = FakeSocketDb.new
 
     # Write two messages to the socket to test failover
     socket.data.write "ERROR\r\nERROR\r\n"
     socket.data.rewind
 
-    server = FakeServer.new socket
+    server = FakeServerDb.new socket
 
     @cache.servers = []
     @cache.servers << server
 
-    assert_raise MemCache::MemCacheError do
+    assert_raise MemCacheDb::MemCacheDbError do
       @cache.flush_all
     end
 
@@ -856,10 +856,10 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_stats
-    socket = FakeSocket.new
+    socket = FakeSocketDb.new
     socket.data.write "STAT pid 20188\r\nSTAT total_items 32\r\nSTAT version 1.2.3\r\nSTAT rusage_user 1:300\r\nSTAT dummy ok\r\nEND\r\n"
     socket.data.rewind
-    server = FakeServer.new socket
+    server = FakeServerDb.new socket
     def server.host() 'localhost'; end
     def server.port() 11211; end
 
@@ -867,7 +867,7 @@ class TestMemCache < Test::Unit::TestCase
     @cache.servers << server
 
     expected = {
-      'localhost:11211' => {
+      'localhost:21201' => {
         'pid' => 20188, 'total_items' => 32, 'version' => '1.2.3',
         'rusage_user' => 1.0003, 'dummy' => 'ok'
       }
@@ -878,11 +878,11 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_basic_threaded_operations_should_work
-    cache = MemCache.new :multithread => true,
+    cache = MemCacheDb.new :multithread => true,
                          :namespace => 'my_namespace',
                          :readonly => false
 
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "STORED\r\n"
     server.socket.data.rewind
 
@@ -901,11 +901,11 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def test_basic_unthreaded_operations_should_work
-    cache = MemCache.new :multithread => false,
+    cache = MemCacheDb.new :multithread => false,
                          :namespace => 'my_namespace',
                          :readonly => false
 
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "STORED\r\n"
     server.socket.data.rewind
 
@@ -924,7 +924,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def util_setup_fake_server
-    server = FakeServer.new
+    server = FakeServerDb.new
     server.socket.data.write "VALUE my_namespace:key 0 14\r\n"
     server.socket.data.write "\004\b\"\0170123456789\r\n"
     server.socket.data.write "END\r\n"
@@ -937,7 +937,7 @@ class TestMemCache < Test::Unit::TestCase
   end
 
   def util_setup_server(memcache, host, responses)
-    server = MemCache::Server.new memcache, host
+    server = MemCacheDb::Server.new memcache, host
     server.instance_variable_set :@sock, StringIO.new(responses)
 
     @cache.servers = []

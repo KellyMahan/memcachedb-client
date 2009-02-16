@@ -4,11 +4,11 @@ require 'rake/rdoctask'
 require 'rake/testtask'
 
 task :gem do
-	sh "gem build memcache-client.gemspec"
+	sh "gem build memcachedb-client.gemspec"
 end
 
 task :install => [:gem] do
-	sh "sudo gem install memcache-client-*.gem"
+	sh "sudo gem install memcachedb-client-*.gem"
 end
 
 Rake::RDocTask.new do |rd|

@@ -9,15 +9,15 @@ require 'digest/sha1'
 require 'continuum'
 
 ##
-# A Ruby client library for memcached.
+# A Ruby client library for memcachedb.
 #
 
-class MemCache
+class MemCacheDb
 
   ##
-  # The version of MemCache you are using.
+  # The version of MemCacheDb you are using.
 
-  VERSION = '1.6.2'
+  VERSION = '1'
 
   ##
   # Default options for the cache object.
@@ -32,12 +32,12 @@ class MemCache
   }
 
   ##
-  # Default memcached port.
+  # Default memcachedb port.
 
-  DEFAULT_PORT = 11211
+  DEFAULT_PORT = 21201
 
   ##
-  # Default memcached server weight.
+  # Default memcachedb server weight.
 
   DEFAULT_WEIGHT = 1
 
@@ -118,7 +118,7 @@ class MemCache
     @logger      = opts[:logger]
     @mutex       = Mutex.new if @multithread
 
-    logger.info { "memcache-client #{VERSION} #{Array(servers).inspect}" } if logger
+    logger.info { "memcachedb-client #{VERSION} #{Array(servers).inspect}" } if logger
 
     self.servers = servers
   end
@@ -127,7 +127,7 @@ class MemCache
   # Returns a string representation of the cache object.
 
   def inspect
-    "<MemCache: %d servers, ns: %p, ro: %p>" %
+    "<MemCacheDb: %d servers, ns: %p, ro: %p>" %
       [@servers.length, @namespace, @readonly]
   end
 
@@ -148,7 +148,7 @@ class MemCache
   ##
   # Set the servers that the requests will be distributed between.  Entries
   # can be either strings of the form "hostname:port" or
-  # "hostname:port:weight" or MemCache::Server objects.
+  # "hostname:port:weight" or MemCacheDb::Server objects.
   #
   def servers=(servers)
     # Create the server objects.
@@ -181,7 +181,7 @@ class MemCache
   # 0.  +key+ can not be decremented below 0.
 
   def decr(key, amount = 1)
-    raise MemCacheError, "Update of readonly cache" if @readonly
+    raise MemCacheDbError, "Update of readonly cache" if @readonly
     with_server(key) do |server, cache_key|
       cache_decr server, cache_key, amount
     end
@@ -190,7 +190,7 @@ class MemCache
   end
 
   ##
-  # Retrieves +key+ from memcache.  If +raw+ is false, the value will be
+  # Retrieves +key+ from MemCacheDb.  If +raw+ is false, the value will be
   # unmarshalled.
 
   def get(key, raw = false)
@@ -206,13 +206,13 @@ class MemCache
   end
 
   ##
-  # Retrieves multiple values from memcached in parallel, if possible.
+  # Retrieves multiple values from memcachedb in parallel, if possible.
   #
-  # The memcached protocol supports the ability to retrieve multiple
+  # The memcachedb protocol supports the ability to retrieve multiple
   # keys in a single request.  Pass in an array of keys to this method
   # and it will:
   #
-  # 1. map the key to the appropriate memcached server
+  # 1. map the key to the appropriate memcachedb server
   # 2. send a single request to each server that has one or more key values
   #
   # Returns a hash of values.
@@ -222,7 +222,7 @@ class MemCache
   #   cache.get_multi "a", "b" # => { "a" => 1, "b" => 2 }
 
   def get_multi(*keys)
-    raise MemCacheError, 'No active servers' unless active?
+    raise MemCacheDbError, 'No active servers' unless active?
 
     keys.flatten!
     key_count = keys.length
@@ -262,7 +262,7 @@ class MemCache
   # 0.
 
   def incr(key, amount = 1)
-    raise MemCacheError, "Update of readonly cache" if @readonly
+    raise MemCacheDbError, "Update of readonly cache" if @readonly
     with_server(key) do |server, cache_key|
       cache_incr server, cache_key, amount
     end
@@ -275,19 +275,19 @@ class MemCache
   # seconds.  If +raw+ is true, +value+ will not be Marshalled.
   #
   # Warning: Readers should not call this method in the event of a cache miss;
-  # see MemCache#add.
+  # see MemCacheDb#add.
 
   ONE_MB = 1024 * 1024
 
   def set(key, value, expiry = 0, raw = false)
-    raise MemCacheError, "Update of readonly cache" if @readonly
+    raise MemCacheDbError, "Update of readonly cache" if @readonly
     with_server(key) do |server, cache_key|
 
       value = Marshal.dump value unless raw
       logger.debug { "SET #{key} to #{server.inspect}: #{value ? value.to_s.size : 'nil'}" } if logger
 
       data = value.to_s
-      raise MemCacheError, "Value too large, memcached can only store 1MB of data per key" if data.size > ONE_MB
+      raise MemCacheDbError, "Value too large, MemCacheDbd can only store 1MB of data per key" if data.size > ONE_MB
 
       command = "set #{cache_key} 0 #{expiry} #{data.size}\r\n#{data}\r\n"
 
@@ -298,7 +298,7 @@ class MemCache
 
         if result.nil?
           server.close
-          raise MemCacheError, "lost connection to #{server.host}:#{server.port}"
+          raise MemCacheDbError, "lost connection to #{server.host}:#{server.port}"
         end
 
         result
@@ -312,10 +312,10 @@ class MemCache
   # If +raw+ is true, +value+ will not be Marshalled.
   #
   # Readers should call this method in the event of a cache miss, not
-  # MemCache#set or MemCache#[]=.
+  # MemCacheDb#set or MemCacheDb#[]=.
 
   def add(key, value, expiry = 0, raw = false)
-    raise MemCacheError, "Update of readonly cache" if @readonly
+    raise MemCacheDbError, "Update of readonly cache" if @readonly
     with_server(key) do |server, cache_key|
       value = Marshal.dump value unless raw
       logger.debug { "ADD #{key} to #{server}: #{value ? value.to_s.size : 'nil'}" } if logger
@@ -334,7 +334,7 @@ class MemCache
   # Removes +key+ from the cache in +expiry+ seconds.
 
   def delete(key, expiry = 0)
-    raise MemCacheError, "Update of readonly cache" if @readonly
+    raise MemCacheDbError, "Update of readonly cache" if @readonly
     with_server(key) do |server, cache_key|
       with_socket_management(server) do |socket|
         socket.write "delete #{cache_key} #{expiry}\r\n"
@@ -346,11 +346,11 @@ class MemCache
   end
 
   ##
-  # Flush the cache from all memcache servers.
+  # Flush the cache from all MemCacheDb servers.
 
   def flush_all
-    raise MemCacheError, 'No active servers' unless active?
-    raise MemCacheError, "Update of readonly cache" if @readonly
+    raise MemCacheDbError, 'No active servers' unless active?
+    raise MemCacheDbError, "Update of readonly cache" if @readonly
 
     begin
       @mutex.lock if @multithread
@@ -370,7 +370,7 @@ class MemCache
   end
 
   ##
-  # Reset the connection to all memcache servers.  This should be called if
+  # Reset the connection to all memcachedb servers.  This should be called if
   # there is a problem with a cache lookup that might have left the connection
   # in a corrupted state.
 
@@ -379,8 +379,8 @@ class MemCache
   end
 
   ##
-  # Returns statistics for each memcached server.  An explanation of the
-  # statistics can be found in the memcached docs:
+  # Returns statistics for each memcachedb server.  An explanation of the
+  # statistics can be found in the memcachedb docs:
   #
   # http://code.sixapart.com/svn/memcached/trunk/server/doc/protocol.txt
   #
@@ -411,7 +411,7 @@ class MemCache
   #   => nil
 
   def stats
-    raise MemCacheError, "No active servers" unless active?
+    raise MemCacheDbError, "No active servers" unless active?
     server_stats = {}
 
     @servers.each do |server|
@@ -446,7 +446,7 @@ class MemCache
       end
     end
 
-    raise MemCacheError, "No active servers" if server_stats.empty?
+    raise MemCacheDbError, "No active servers" if server_stats.empty?
     server_stats
   end
 
@@ -492,7 +492,7 @@ class MemCache
     raise ArgumentError, "illegal character in key #{key.inspect}" if
       key =~ /\s/
     raise ArgumentError, "key too long #{key.inspect}" if key.length > 250
-    raise MemCacheError, "No servers available" if @servers.empty?
+    raise MemCacheDbError, "No servers available" if @servers.empty?
     return @servers.first if @servers.length == 1
 
     hkey = hash_for(key)
@@ -505,7 +505,7 @@ class MemCache
       hkey = hash_for "#{try}#{key}"
     end
     
-    raise MemCacheError, "No servers available"
+    raise MemCacheDbError, "No servers available"
   end
 
   ##
@@ -533,7 +533,7 @@ class MemCache
 
       if keyline.nil? then
         server.close
-        raise MemCacheError, "lost connection to #{server.host}:#{server.port}"
+        raise MemCacheDbError, "lost connection to #{server.host}:#{server.port}"
       end
 
       raise_on_error_response! keyline
@@ -541,7 +541,7 @@ class MemCache
 
       unless keyline =~ /(\d+)\r/ then
         server.close
-        raise MemCacheError, "unexpected response #{keyline.inspect}"
+        raise MemCacheDbError, "unexpected response #{keyline.inspect}"
       end
       value = socket.read $1.to_i
       socket.read 2 # "\r\n"
@@ -564,7 +564,7 @@ class MemCache
 
         unless keyline =~ /\AVALUE (.+) (.+) (.+)/ then
           server.close
-          raise MemCacheError, "unexpected response #{keyline.inspect}"
+          raise MemCacheDbError, "unexpected response #{keyline.inspect}"
         end
 
         key, data_length = $1, $3
@@ -573,7 +573,7 @@ class MemCache
       end
 
       server.close
-      raise MemCacheError, "lost connection to #{server.host}:#{server.port}" # TODO: retry here too
+      raise MemCacheDbError, "lost connection to #{server.host}:#{server.port}" # TODO: retry here too
     end
   end
 
@@ -596,12 +596,12 @@ class MemCache
   # to the block, wrapped in a mutex synchronization if @multithread is true.
   #
   # If a socket error (SocketError, SystemCallError, IOError) or protocol error
-  # (MemCacheError) is raised by the block, closes the socket, attempts to
+  # (MemCacheDbError) is raised by the block, closes the socket, attempts to
   # connect again, and retries the block (once).  If an error is again raised,
-  # reraises it as MemCacheError.
+  # reraises it as MemCacheDbError.
   #
   # If unable to connect to the server (or if in the reconnect wait period),
-  # raises MemCacheError.  Note that the socket connect code marks a server
+  # raises MemCacheDbError.  Note that the socket connect code marks a server
   # dead for a timeout period, so retrying does not apply to connection attempt
   # failures (but does still apply to unexpectedly lost connections etc.).
 
@@ -624,7 +624,7 @@ class MemCache
       server.mark_dead(err)
       handle_error(server, err)
 
-    rescue MemCacheError, SystemCallError, IOError => err
+    rescue MemCacheDbError, SystemCallError, IOError => err
       logger.warn { "Generic failure: #{err.class.name}: #{err.message}" } if logger
       handle_error(server, err) if retried || socket.nil?
       retried = true
@@ -654,19 +654,19 @@ class MemCache
   # Handles +error+ from +server+.
 
   def handle_error(server, error)
-    raise error if error.is_a?(MemCacheError)
+    raise error if error.is_a?(MemCacheDbError)
     server.close if server
-    new_error = MemCacheError.new error.message
+    new_error = MemCacheDbError.new error.message
     new_error.set_backtrace error.backtrace
     raise new_error
   end
 
   ##
-  # Performs setup for making a request with +key+ from memcached.  Returns
+  # Performs setup for making a request with +key+ from memcachedb.  Returns
   # the server to fetch the key from and the complete key to use.
 
   def request_setup(key)
-    raise MemCacheError, 'No active servers' unless active?
+    raise MemCacheDbError, 'No active servers' unless active?
     cache_key = make_cache_key key
     server = get_server_for_key cache_key
     return server, cache_key
@@ -674,7 +674,7 @@ class MemCache
 
   def raise_on_error_response!(response)
     if response =~ /\A(?:CLIENT_|SERVER_)?ERROR(.*)/
-      raise MemCacheError, $1.strip
+      raise MemCacheDbError, $1.strip
     end
   end
 
@@ -698,12 +698,12 @@ class MemCache
   end
 
   ##
-  # This class represents a memcached server instance.
+  # This class represents a memcachedb server instance.
 
   class Server
 
     ##
-    # The amount of time to wait to establish a connection with a memcached
+    # The amount of time to wait to establish a connection with a memcachedb
     # server.  If a connection cannot be established within this time limit,
     # the server will be marked as down.
 
@@ -716,12 +716,12 @@ class MemCache
     RETRY_DELAY = 30.0
 
     ##
-    # The host the memcached server is running on.
+    # The host the memcachedb server is running on.
 
     attr_reader :host
 
     ##
-    # The port the memcached server is listening on.
+    # The port the memcachedb server is listening on.
 
     attr_reader :port
 
@@ -744,7 +744,7 @@ class MemCache
     attr_reader :logger
 
     ##
-    # Create a new MemCache::Server object for the memcached instance
+    # Create a new MemCacheDb::Server object for the memcachedb instance
     # listening on the given host and port, weighted by the given weight.
 
     def initialize(memcache, host, port = DEFAULT_PORT, weight = DEFAULT_WEIGHT)
@@ -769,7 +769,7 @@ class MemCache
     # Return a string representation of the server object.
 
     def inspect
-      "<MemCache::Server: %s:%d [%d] (%s)>" % [@host, @port, @weight, @status]
+      "<MemCacheDb::Server: %s:%d [%d] (%s)>" % [@host, @port, @weight, @status]
     end
 
     ##
@@ -783,7 +783,7 @@ class MemCache
     end
 
     ##
-    # Try to connect to the memcached server targeted by this object.
+    # Try to connect to the memcachedb server targeted by this object.
     # Returns the connected socket object on success or nil on failure.
 
     def socket
@@ -815,7 +815,7 @@ class MemCache
     end
 
     ##
-    # Close the connection to the memcached server targeted by this
+    # Close the connection to the memcachedb server targeted by this
     # object.  The server is not considered dead.
 
     def close
@@ -844,9 +844,9 @@ class MemCache
   end
 
   ##
-  # Base MemCache exception class.
+  # Base MemCacheDb exception class.
 
-  class MemCacheError < RuntimeError; end
+  class MemCacheDbError < RuntimeError; end
 
 end
 
@@ -854,7 +854,7 @@ end
 class TCPTimeoutSocket
   
   def initialize(host, port, timeout)
-    Timeout::timeout(MemCache::Server::CONNECT_TIMEOUT, SocketError) do
+    Timeout::timeout(MemCacheDb::Server::CONNECT_TIMEOUT, SocketError) do
       @sock = TCPSocket.new(host, port)
       @len = timeout
     end

@@ -1,8 +1,8 @@
 ##
-# A utility wrapper around the MemCache client to simplify cache access.  All
-# methods silently ignore MemCache errors.
+# A utility wrapper around the MemCacheDb client to simplify cache access.  All
+# methods silently ignore MemCacheDb errors.
 
-module Cache
+module CacheDb
   
   ##
   # Try to return a logger object that does not rely
@@ -29,14 +29,14 @@ module Cache
     start_time = Time.now
     value = CACHE.get key
     elapsed = Time.now - start_time
-    logger.debug('MemCache Get (%0.6f)  %s' % [elapsed, key])
+    logger.debug('MemCacheDb Get (%0.6f)  %s' % [elapsed, key])
     if value.nil? and block_given? then
       value = yield
       add key, value, expiry
     end
     value
-  rescue MemCache::MemCacheError => err
-    logger.debug "MemCache Error: #{err.message}"
+  rescue MemCacheDb::MemCacheDbError => err
+    logger.debug "MemCacheDb Error: #{err.message}"
     if block_given? then
       value = yield
       put key, value, expiry
@@ -52,10 +52,10 @@ module Cache
     start_time = Time.now
     CACHE.set key, value, expiry
     elapsed = Time.now - start_time
-    logger.debug('MemCache Set (%0.6f)  %s' % [elapsed, key])
+    logger.debug('MemCacheDb Set (%0.6f)  %s' % [elapsed, key])
     value
-  rescue MemCache::MemCacheError => err
-    ActiveRecord::Base.logger.debug "MemCache Error: #{err.message}"
+  rescue MemCacheDb::MemCacheDbError => err
+    ActiveRecord::Base.logger.debug "MemCacheDb Error: #{err.message}"
     nil
   end
 
@@ -67,10 +67,10 @@ module Cache
     start_time = Time.now
     response = CACHE.add key, value, expiry
     elapsed = Time.now - start_time
-    logger.debug('MemCache Add (%0.6f)  %s' % [elapsed, key])
+    logger.debug('MemCacheDb Add (%0.6f)  %s' % [elapsed, key])
     (response == "STORED\r\n") ? value : nil
-  rescue MemCache::MemCacheError => err
-    ActiveRecord::Base.logger.debug "MemCache Error: #{err.message}"
+  rescue MemCacheDb::MemCacheDbError => err
+    ActiveRecord::Base.logger.debug "MemCacheDb Error: #{err.message}"
     nil
   end
 
@@ -81,20 +81,20 @@ module Cache
     start_time = Time.now
     CACHE.delete key, delay
     elapsed = Time.now - start_time
-    logger.debug('MemCache Delete (%0.6f)  %s' %
+    logger.debug('MemCacheDb Delete (%0.6f)  %s' %
                                     [elapsed, key])
     nil
-  rescue MemCache::MemCacheError => err
-    logger.debug "MemCache Error: #{err.message}"
+  rescue MemCacheDb::MemCacheDbError => err
+    logger.debug "MemCacheDb Error: #{err.message}"
     nil
   end
 
   ##
-  # Resets all connections to MemCache servers.
+  # Resets all connections to MemCacheDb servers.
 
   def self.reset
     CACHE.reset
-    logger.debug 'MemCache Connections Reset'
+    logger.debug 'MemCacheDb Connections Reset'
     nil
   end
 

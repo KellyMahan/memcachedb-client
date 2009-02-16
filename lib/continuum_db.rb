@@ -1,4 +1,4 @@
-module Continuum
+module ContinuumDb
   POINTS_PER_SERVER = 160 # this is the default in libmemcached
 
   class << self
