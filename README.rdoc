@@ -10,7 +10,7 @@ http://github.com/KellyMahan/memcachedb-client
 
 Just install the gem:
 
-  $ sudo gem install memcachedb-client
+  $ sudo gem install KellyMahan-memcachedb-client
 
 == Using memcachedb-client
 
