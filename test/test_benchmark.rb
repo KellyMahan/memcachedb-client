@@ -18,7 +18,6 @@ class TestBenchmark < Test::Unit::TestCase
       {
         :namespace => "namespace",
         :timeout => nil,
-        :failover => false,
       }
     ]
     @key1 = "Short"
