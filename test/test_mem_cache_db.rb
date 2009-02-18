@@ -352,7 +352,7 @@ class TestMemCacheDb < Test::Unit::TestCase
       begin
         @cache.set 'b', 2
         passed = false
-      rescue MemCache::MemCacheError => me
+      rescue MemCacheDb::MemCacheError => me
         passed = me.message =~ /multiple threads/
       end
     end

@@ -1,3 +1,9 @@
+= 1.1.1
+
+  merged changes from memcache-client 1.6.4
+  
+  "Add runtime check for unsafe multithreaded usage, to ward off bug reports."
+
 = 1.1
 
 added get_range method.

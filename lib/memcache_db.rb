@@ -17,7 +17,7 @@ class MemCacheDb
   ##
   # The version of MemCacheDb you are using.
 
-  VERSION = '1.0.1'
+  VERSION = '1.1.1'
   ##
   # Default options for the cache object.
 
