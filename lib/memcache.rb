@@ -17,7 +17,7 @@ class MemCache
   ##
   # The version of MemCache you are using.
 
-  VERSION = '1.6.2'
+  VERSION = '1.6.4'
 
   ##
   # Default options for the cache object.
@@ -119,6 +119,8 @@ class MemCache
     @mutex       = Mutex.new if @multithread
 
     logger.info { "memcache-client #{VERSION} #{Array(servers).inspect}" } if logger
+
+    Thread.current[:memcache_client] = self.object_id if !@multithread
 
     self.servers = servers
   end
@@ -606,6 +608,8 @@ class MemCache
   # failures (but does still apply to unexpectedly lost connections etc.).
 
   def with_socket_management(server, &block)
+    check_multithread_status!
+
     @mutex.lock if @multithread
     retried = false
 
@@ -695,6 +699,18 @@ class MemCache
 
   def entry_count_for(server, total_servers, total_weight)
     ((total_servers * Continuum::POINTS_PER_SERVER * server.weight) / Float(total_weight)).floor
+  end
+
+  def check_multithread_status!
+    return if @multithread
+
+    if Thread.current[:memcache_client] != self.object_id
+      raise MemCacheError, <<-EOM
+        You are accessing this memcache-client instance from multiple threads but have not enabled multithread support.
+        Normally:  MemCache.new(['localhost:11211'], :multithread => true)
+        In Rails:  config.cache_store = [:mem_cache_store, 'localhost:11211', { :multithread => true }]
+      EOM
+    end
   end
 
   ##
