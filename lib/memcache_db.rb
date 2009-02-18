@@ -18,7 +18,6 @@ class MemCacheDb
   # The version of MemCacheDb you are using.
 
   VERSION = '1.0.1'
-
   ##
   # Default options for the cache object.
 
@@ -119,6 +118,8 @@ class MemCacheDb
     @mutex       = Mutex.new if @multithread
 
     logger.info { "memcachedb-client #{VERSION} #{Array(servers).inspect}" } if logger
+
+    Thread.current[:memcachedb_client] = self.object_id if !@multithread
 
     self.servers = servers
   end
@@ -692,6 +693,8 @@ class MemCacheDb
   # failures (but does still apply to unexpectedly lost connections etc.).
 
   def with_socket_management(server, &block)
+    check_multithread_status!
+
     @mutex.lock if @multithread
     retried = false
 
@@ -781,6 +784,18 @@ class MemCacheDb
 
   def entry_count_for(server, total_servers, total_weight)
     ((total_servers * Continuum::POINTS_PER_SERVER * server.weight) / Float(total_weight)).floor
+  end
+
+  def check_multithread_status!
+    return if @multithread
+
+    if Thread.current[:memcachedb_client] != self.object_id
+      raise MemCacheDbError, <<-EOM
+        You are accessing this memcachedb-client instance from multiple threads but have not enabled multithread support.
+        Normally:  MemCacheDb.new(['localhost:21201'], :multithread => true)
+        In Rails:  config.cache_store = [:mem_cache_db_store, 'localhost:21201', { :multithread => true }]
+      EOM
+    end
   end
 
   ##

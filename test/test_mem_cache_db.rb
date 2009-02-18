@@ -333,6 +333,32 @@ class TestMemCacheDb < Test::Unit::TestCase
     assert !server.alive?
   end
 
+  def test_multithread_error
+    server = FakeServer.new
+
+    # Write two messages to the socket to test failover
+    server.socket.data.write "bogus response\r\nbogus response\r\n"
+    server.socket.data.rewind
+
+    @cache.servers = []
+    @cache.servers << server
+
+    assert_nothing_raised do
+      @cache.set 'a', 1
+    end
+
+    passed = true
+    Thread.new do
+      begin
+        @cache.set 'b', 2
+        passed = false
+      rescue MemCache::MemCacheError => me
+        passed = me.message =~ /multiple threads/
+      end
+    end
+    assert passed
+  end
+
   def test_initialize
     cache = MemCacheDb.new :namespace => 'my_namespace', :readonly => true
 
