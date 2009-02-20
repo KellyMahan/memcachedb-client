@@ -1,3 +1,14 @@
+= 1.6.4 (2009-02-19)
+
+* Remove native code altogether.  The speedup was only 10% on Ruby 1.8.6 and did not work
+  on Ruby 1.9.1.
+
+* Removed memcache_util.rb from the distribution.  If you are using it, please copy the code
+  into your own project.  The file will live in the github repository for a few more months
+  for this purposes. http://github.com/mperham/memcache-client/raw/7a276089aa3c914e47e3960f9740ac7377204970/lib/memcache_util.rb
+
+* Roll continuum.rb into memcache.rb.  The project is again a single Ruby file, with no dependencies.
+
 = 1.6.3 (2009-02-14)
 
 * Remove gem native extension in preference to RubyInline.  This allows the gem to install

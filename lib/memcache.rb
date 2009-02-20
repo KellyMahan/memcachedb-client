@@ -6,8 +6,6 @@ require 'timeout'
 require 'zlib'
 require 'digest/sha1'
 
-require 'continuum'
-
 ##
 # A Ruby client library for memcached.
 #
@@ -908,5 +906,44 @@ class TCPTimeoutSocket
   
   def close
     @sock.close
+  end
+end
+
+module Continuum
+  POINTS_PER_SERVER = 160 # this is the default in libmemcached
+
+  # Find the closest index in Continuum with value <= the given value
+  def self.binary_search(ary, value, &block)
+    upper = ary.size - 1
+    lower = 0
+    idx = 0
+
+    while(lower <= upper) do
+      idx = (lower + upper) / 2
+      comp = ary[idx].value <=> value
+
+      if comp == 0
+        return idx
+      elsif comp > 0
+        upper = idx - 1
+      else
+        lower = idx + 1
+      end
+    end
+    return upper
+  end
+
+  class Entry
+    attr_reader :value
+    attr_reader :server
+
+    def initialize(val, srv)
+      @value = val
+      @server = srv
+    end
+
+    def inspect
+      "<#{value}, #{server.host}:#{server.port}>"
+    end
   end
 end
