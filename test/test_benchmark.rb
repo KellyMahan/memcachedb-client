@@ -6,6 +6,9 @@ require 'benchmark'
 require 'rubygems'
 require 'test/unit'
 
+$TESTING = true
+require 'memcache' if not defined?(MemCache)
+
 class TestBenchmark < Test::Unit::TestCase
 
   def setup
@@ -19,7 +22,7 @@ class TestBenchmark < Test::Unit::TestCase
       ['127.0.0.1:11211', 'localhost:11211'],
       {
         :namespace => "namespace",
-#        :timeout => nil,
+        :timeout => nil,
       }
     ]
     @key1 = "Short"

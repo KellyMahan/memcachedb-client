@@ -15,7 +15,7 @@ class MemCache
   ##
   # The version of MemCache you are using.
 
-  VERSION = '1.6.4'
+  VERSION = '1.6.5'
 
   ##
   # Default options for the cache object.
@@ -23,7 +23,7 @@ class MemCache
   DEFAULT_OPTIONS = {
     :namespace   => nil,
     :readonly    => false,
-    :multithread => false,
+    :multithread => true,
     :failover    => true,
     :timeout     => 0.5,
     :logger      => nil,
@@ -55,7 +55,7 @@ class MemCache
   attr_reader :servers
 
   ##
-  # Socket timeout limit with this client, defaults to 0.25 sec.
+  # Socket timeout limit with this client, defaults to 0.5 sec.
   # Set to nil to disable timeouts.
 
   attr_reader :timeout
@@ -82,7 +82,7 @@ class MemCache
   #   [:multithread] Wraps cache access in a Mutex for thread safety.
   #   [:failover]    Should the client try to failover to another server if the
   #                  first server is down?  Defaults to true.
-  #   [:timeout]     Time to use as the socket read timeout.  Defaults to 0.25 sec,
+  #   [:timeout]     Time to use as the socket read timeout.  Defaults to 0.5 sec,
   #                  set to nil to disable timeouts (this is a major performance penalty in Ruby 1.8).
   #   [:logger]      Logger to use for info/debug output, defaults to nil
   # Other options are ignored.
@@ -160,9 +160,6 @@ class MemCache
         weight ||= DEFAULT_WEIGHT
         Server.new self, host, port, weight
       else
-        if server.multithread != @multithread then
-          raise ArgumentError, "can't mix threaded and non-threaded servers"
-        end
         server
       end
     end
@@ -220,6 +217,8 @@ class MemCache
   #   cache["a"] = 1
   #   cache["b"] = 2
   #   cache.get_multi "a", "b" # => { "a" => 1, "b" => 2 }
+  #
+  # Note that get_multi assumes the values are marshalled.
 
   def get_multi(*keys)
     raise MemCacheError, 'No active servers' unless active?
@@ -353,7 +352,6 @@ class MemCache
     raise MemCacheError, "Update of readonly cache" if @readonly
 
     begin
-      @mutex.lock if @multithread
       @servers.each do |server|
         with_socket_management(server) do |socket|
           socket.write "flush_all\r\n"
@@ -364,8 +362,6 @@ class MemCache
       end
     rescue IndexError => err
       handle_error nil, err
-    ensure
-      @mutex.unlock if @multithread
     end
   end
 
@@ -754,7 +750,6 @@ class MemCache
 
     attr_reader :status
 
-    attr_reader :multithread
     attr_reader :logger
 
     ##
@@ -768,9 +763,6 @@ class MemCache
       @host   = host
       @port   = port.to_i
       @weight = weight.to_i
-
-      @multithread = memcache.multithread
-      @mutex = Mutex.new
 
       @sock   = nil
       @retry  = nil
@@ -801,7 +793,6 @@ class MemCache
     # Returns the connected socket object on success or nil on failure.
 
     def socket
-      @mutex.lock if @multithread
       return @sock if @sock and not @sock.closed?
 
       @sock = nil
@@ -824,8 +815,6 @@ class MemCache
       end
 
       return @sock
-    ensure
-      @mutex.unlock if @multithread
     end
 
     ##
@@ -833,13 +822,10 @@ class MemCache
     # object.  The server is not considered dead.
 
     def close
-      @mutex.lock if @multithread
       @sock.close if @sock && !@sock.closed?
       @sock   = nil
       @retry  = nil
       @status = "NOT CONNECTED"
-    ensure
-      @mutex.unlock if @multithread
     end
 
     ##

@@ -10,9 +10,10 @@ rescue LoadError => e
   puts "Some tests require flexmock, please run `gem install flexmock`"
 end
 
+Thread.abort_on_exception = true
 $TESTING = true
 
-require File.dirname(__FILE__) + '/../lib/memcache'
+require File.dirname(__FILE__) + '/../lib/memcache' if not defined?(MemCache)
 
 class MemCache
 
@@ -79,7 +80,7 @@ end
 
 class FakeServer
 
-  attr_reader :host, :port, :socket, :weight, :multithread, :status
+  attr_accessor :host, :port, :socket, :weight, :multithread, :status
 
   def initialize(socket = nil)
     @closed = false
@@ -87,7 +88,7 @@ class FakeServer
     @port = 11211
     @socket = socket || FakeSocket.new
     @weight = 1
-    @multithread = false
+    @multithread = true
     @status = "CONNECTED"
   end
 
@@ -117,9 +118,9 @@ class TestMemCache < Test::Unit::TestCase
 
   def test_performance
     requirement(memcached_running?, 'A real memcached server must be running for performance testing') do
-      host = Socket.gethostname
 
-      cache = MemCache.new(['localhost:11211',"#{host}:11211"])
+      cache = MemCache.new(['localhost:11211',"127.0.0.1:11211"])
+      cache.flush_all
       cache.add('a', 1, 120)
       with = xprofile 'get' do
         1000.times do
@@ -129,7 +130,7 @@ class TestMemCache < Test::Unit::TestCase
       puts ''
       puts "1000 gets with socket timeout: #{with} sec"
 
-      cache = MemCache.new(['localhost:11211',"#{host}:11211"], :timeout => nil)
+      cache = MemCache.new(['localhost:11211',"127.0.0.1:11211"], :timeout => nil)
       cache.add('a', 1, 120)
       without = xprofile 'get' do
         1000.times do
@@ -335,8 +336,10 @@ class TestMemCache < Test::Unit::TestCase
 
   def test_multithread_error
     server = FakeServer.new
+    server.multithread = false
+    
+    @cache = MemCache.new(['localhost:1'], :multithread => false)
 
-    # Write two messages to the socket to test failover
     server.socket.data.write "bogus response\r\nbogus response\r\n"
     server.socket.data.rewind
 
@@ -970,6 +973,38 @@ class TestMemCache < Test::Unit::TestCase
     @cache.servers << server
 
     return server
+  end
+
+  def test_crazy_multithreaded_access
+    requirement(memcached_running?, 'A real memcached server must be running for performance testing') do
+
+      cache = MemCache.new(['localhost:11211', '127.0.0.1:11211'])
+      cache.flush_all
+      workers = []
+
+      # Have a bunch of threads perform a bunch of operations at the same time.
+      # Verify the result of each operation to ensure the request and response
+      # are not intermingled between threads.
+      10.times do
+        workers << Thread.new do
+          100.times do
+            cache.set('a', 9)
+            cache.set('b', 11)
+            cache.set('c', 10, 10, true)
+            assert_equal "NOT_STORED\r\n", cache.add('a', 11)
+            assert_equal({ 'a' => 9, 'b' => 11 }, cache.get_multi(['a', 'b']))
+            inc = cache.incr('c', 10)
+            assert_equal 0, inc % 5
+            assert inc > 14
+            assert cache.decr('c', 5) > 14
+            assert_equal 11, cache.get('b')
+          end
+        end
+      end
+
+      workers.each { |w| w.join }
+      cache.flush_all
+    end
   end
 
 end
