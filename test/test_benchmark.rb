@@ -22,7 +22,7 @@ class TestBenchmark < Test::Unit::TestCase
       ['127.0.0.1:11211', 'localhost:11211'],
       {
         :namespace => "namespace",
-        :timeout => nil,
+#        :timeout => nil,
       }
     ]
     @key1 = "Short"
@@ -37,8 +37,8 @@ class TestBenchmark < Test::Unit::TestCase
   def test_benchmark
     Benchmark.bm(31) do |x|
     
-#      n = 2500
-      n = 1000
+      n = 2500
+#      n = 1000
     
       @m = MemCache.new(*@opts)
       x.report("set:plain:memcache-client") do

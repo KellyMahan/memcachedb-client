@@ -2,9 +2,17 @@ $TESTING = defined?($TESTING) && $TESTING
 
 require 'socket'
 require 'thread'
-require 'timeout'
 require 'zlib'
 require 'digest/sha1'
+
+begin
+  require 'system_timer'
+  MemCacheTimer = SystemTimer
+rescue LoadError
+  puts "[memcache-client] Could not load system_timer gem, falling back to Ruby's slower timeout library"
+  require 'timeout'
+  MemCacheTimer = Timeout
+end
 
 ##
 # A Ruby client library for memcached.
@@ -617,7 +625,7 @@ class MemCache
 
       block.call(socket)
 
-    rescue SocketError => err
+    rescue SocketError, Timeout::Error => err
       logger.warn { "Socket failure: #{err.message}" } if logger
       server.mark_dead(err)
       handle_error(server, err)
@@ -854,26 +862,26 @@ end
 class TCPTimeoutSocket
   
   def initialize(host, port, timeout)
-    Timeout::timeout(MemCache::Server::CONNECT_TIMEOUT, SocketError) do
+    MemCacheTimer.timeout(MemCache::Server::CONNECT_TIMEOUT) do
       @sock = TCPSocket.new(host, port)
       @len = timeout
     end
   end
   
   def write(*args)
-    Timeout::timeout(@len, SocketError) do
+    MemCacheTimer.timeout(@len) do
       @sock.write(*args)
     end
   end
   
   def gets(*args)
-    Timeout::timeout(@len, SocketError) do
+    MemCacheTimer.timeout(@len) do
       @sock.gets(*args)
     end
   end
   
   def read(*args)
-    Timeout::timeout(@len, SocketError) do
+    MemCacheTimer.timeout(@len) do
       @sock.read(*args)
     end
   end
