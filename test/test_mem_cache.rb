@@ -990,7 +990,7 @@ class TestMemCache < Test::Unit::TestCase
           100.times do
             cache.set('a', 9)
             cache.set('b', 11)
-            cache.set('c', 10, 10, true)
+            cache.add('c', 10, 0, true)
             assert_equal "NOT_STORED\r\n", cache.add('a', 11)
             assert_equal({ 'a' => 9, 'b' => 11 }, cache.get_multi(['a', 'b']))
             inc = cache.incr('c', 10)
