@@ -16,22 +16,24 @@ Just install the gem:
 
 With one server:
 
-  CACHE = MemCache.new 'localhost:11211', :namespace => 'my_namespace'
+  CACHE = MemCache.new 'localhost:11211'
 
 Or with multiple servers:
 
-  CACHE = MemCache.new %w[one.example.com:11211 two.example.com:11211],
-                       :namespace => 'my_namespace'
+  CACHE = MemCache.new %w[one.example.com:11211 two.example.com:11211]
 
-See MemCache.new for details.  Please note memcache-client is not thread-safe
-by default.  You should create a separate instance for each thread in your
-process.
+
+== Tuning memcache-client
+
+The MemCache.new method takes a number of options which can be useful at times.  Please
+read the source comments there for an overview.
+
 
 == Using memcache-client with Rails
 
-There's no need to use memcache-client in a Rails application.  Rails 2.1+ includes
-a basic caching library which can be used with memcached.  See ActiveSupport::Cache::Store
-for more details.
+Rails 2.1+ includes memcache-client out of the box.  See ActiveSupport::Cache::MemCacheStore
+and the Rails.cache method for more details.
+
 
 == Questions?
 
