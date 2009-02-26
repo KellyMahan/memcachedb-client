@@ -6,10 +6,20 @@ require 'zlib'
 require 'digest/sha1'
 
 begin
-  require 'system_timer'
-  MemCacheTimer = SystemTimer
-rescue LoadError
-  puts "[memcache-client] Could not load system_timer gem, falling back to Ruby's slower timeout library"
+  # Try to use the SystemTimer gem instead of Ruby's timeout library
+  # when running on something that looks like Ruby 1.8.x.  See:
+  #   http://ph7spot.com/articles/system_timer
+  # We don't want to bother trying to load SystemTimer on jruby and
+  # ruby 1.9+.
+  if !defined?(RUBY_ENGINE)
+    require 'system_timer'
+    MemCacheTimer = SystemTimer
+  else
+    require 'timeout'
+    MemCacheTimer = Timeout
+  end
+rescue LoadError => e
+  puts "[memcache-client] Could not load SystemTimer gem, falling back to Ruby's slower/unsafe timeout library: #{e.message}"
   require 'timeout'
   MemCacheTimer = Timeout
 end
@@ -87,12 +97,14 @@ class MemCache
   #
   #   [:namespace]   Prepends this value to all keys added or retrieved.
   #   [:readonly]    Raises an exception on cache writes when true.
-  #   [:multithread] Wraps cache access in a Mutex for thread safety.
+  #   [:multithread] Wraps cache access in a Mutex for thread safety. Defaults to true.
   #   [:failover]    Should the client try to failover to another server if the
   #                  first server is down?  Defaults to true.
   #   [:timeout]     Time to use as the socket read timeout.  Defaults to 0.5 sec,
-  #                  set to nil to disable timeouts (this is a major performance penalty in Ruby 1.8).
+  #                  set to nil to disable timeouts (this is a major performance penalty in Ruby 1.8,
+  #                  "gem install SystemTimer' to remove most of the penalty).
   #   [:logger]      Logger to use for info/debug output, defaults to nil
+  #
   # Other options are ignored.
 
   def initialize(*args)
