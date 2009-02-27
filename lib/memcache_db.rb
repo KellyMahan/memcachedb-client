@@ -2,11 +2,27 @@ $TESTING = defined?($TESTING) && $TESTING
 
 require 'socket'
 require 'thread'
-require 'timeout'
 require 'zlib'
 require 'digest/sha1'
 
-require 'continuum_db'
+begin
+  # Try to use the SystemTimer gem instead of Ruby's timeout library
+  # when running on something that looks like Ruby 1.8.x.  See:
+  #   http://ph7spot.com/articles/system_timer
+  # We don't want to bother trying to load SystemTimer on jruby and
+  # ruby 1.9+.
+  if !defined?(RUBY_ENGINE)
+    require 'system_timer'
+    MemCacheTimerDb = SystemTimer
+  else
+    require 'timeout'
+    MemCacheTimerDb = Timeout
+  end
+rescue LoadError => e
+  puts "[memcache-client] Could not load SystemTimer gem, falling back to Ruby's slower/unsafe timeout library: #{e.message}"
+  require 'timeout'
+  MemCacheTimerDb = Timeout
+end
 
 ##
 # A Ruby client library for memcachedb.
@@ -14,17 +30,17 @@ require 'continuum_db'
 
 class MemCacheDb
 
-  ##
+
   # The version of MemCacheDb you are using.
 
-  VERSION = '1.1.1'
+  VERSION = '1.1.2'
   ##
   # Default options for the cache object.
 
   DEFAULT_OPTIONS = {
     :namespace   => nil,
     :readonly    => false,
-    :multithread => false,
+    :multithread => true,
     :failover    => true,
     :timeout     => 0.5,
     :logger      => nil,
@@ -56,7 +72,7 @@ class MemCacheDb
   attr_reader :servers
 
   ##
-  # Socket timeout limit with this client, defaults to 0.25 sec.
+  # Socket timeout limit with this client, defaults to 0.5 sec.
   # Set to nil to disable timeouts.
 
   attr_reader :timeout
@@ -80,12 +96,14 @@ class MemCacheDb
   #
   #   [:namespace]   Prepends this value to all keys added or retrieved.
   #   [:readonly]    Raises an exception on cache writes when true.
-  #   [:multithread] Wraps cache access in a Mutex for thread safety.
+  #   [:multithread] Wraps cache access in a Mutex for thread safety. Defaults to true.
   #   [:failover]    Should the client try to failover to another server if the
   #                  first server is down?  Defaults to true.
-  #   [:timeout]     Time to use as the socket read timeout.  Defaults to 0.25 sec,
-  #                  set to nil to disable timeouts (this is a major performance penalty in Ruby 1.8).
+  #   [:timeout]     Time to use as the socket read timeout.  Defaults to 0.5 sec,
+  #                  set to nil to disable timeouts (this is a major performance penalty in Ruby 1.8,
+  #                  "gem install SystemTimer' to remove most of the penalty).
   #   [:logger]      Logger to use for info/debug output, defaults to nil
+  #
   # Other options are ignored.
 
   def initialize(*args)
@@ -161,9 +179,6 @@ class MemCacheDb
         weight ||= DEFAULT_WEIGHT
         Server.new self, host, port, weight
       else
-        if server.multithread != @multithread then
-          raise ArgumentError, "can't mix threaded and non-threaded servers"
-        end
         server
       end
     end
@@ -221,6 +236,8 @@ class MemCacheDb
   #   cache["a"] = 1
   #   cache["b"] = 2
   #   cache.get_multi "a", "b" # => { "a" => 1, "b" => 2 }
+  #
+  # Note that get_multi assumes the values are marshalled.
 
 
   def get_range(key1, key2, limit=100)
@@ -377,7 +394,6 @@ class MemCacheDb
     raise MemCacheDbError, "Update of readonly cache" if @readonly
 
     begin
-      @mutex.lock if @multithread
       @servers.each do |server|
         with_socket_management(server) do |socket|
           socket.write "flush_all\r\n"
@@ -388,8 +404,6 @@ class MemCacheDb
       end
     rescue IndexError => err
       handle_error nil, err
-    ensure
-      @mutex.unlock if @multithread
     end
   end
 
@@ -522,7 +536,7 @@ class MemCacheDb
     hkey = hash_for(key)
 
     20.times do |try|
-      entryidx = Continuum.binary_search(@continuum, hkey)
+      entryidx = ContinuumDb.binary_search(@continuum, hkey)
       server = @continuum[entryidx].server
       return server if server.alive?
       break unless failover
@@ -708,7 +722,7 @@ class MemCacheDb
 
       block.call(socket)
 
-    rescue SocketError => err
+    rescue SocketError, Timeout::Error => err
       logger.warn { "Socket failure: #{err.message}" } if logger
       server.mark_dead(err)
       handle_error(server, err)
@@ -775,7 +789,7 @@ class MemCacheDb
       entry_count_for(server, servers.size, total_weight).times do |idx|
         hash = Digest::SHA1.hexdigest("#{server.host}:#{server.port}:#{idx}")
         value = Integer("0x#{hash[0..7]}")
-        continuum << Continuum::Entry.new(value, server)
+        continuum << ContinuumDb::Entry.new(value, server)
       end
     end
 
@@ -783,7 +797,7 @@ class MemCacheDb
   end
 
   def entry_count_for(server, total_servers, total_weight)
-    ((total_servers * Continuum::POINTS_PER_SERVER * server.weight) / Float(total_weight)).floor
+    ((total_servers * ContinuumDb::POINTS_PER_SERVER * server.weight) / Float(total_weight)).floor
   end
 
   def check_multithread_status!
@@ -841,7 +855,6 @@ class MemCacheDb
 
     attr_reader :status
 
-    attr_reader :multithread
     attr_reader :logger
 
     ##
@@ -855,9 +868,6 @@ class MemCacheDb
       @host   = host
       @port   = port.to_i
       @weight = weight.to_i
-
-      @multithread = memcache.multithread
-      @mutex = Mutex.new
 
       @sock   = nil
       @retry  = nil
@@ -888,7 +898,6 @@ class MemCacheDb
     # Returns the connected socket object on success or nil on failure.
 
     def socket
-      @mutex.lock if @multithread
       return @sock if @sock and not @sock.closed?
 
       @sock = nil
@@ -911,8 +920,6 @@ class MemCacheDb
       end
 
       return @sock
-    ensure
-      @mutex.unlock if @multithread
     end
 
     ##
@@ -920,13 +927,10 @@ class MemCacheDb
     # object.  The server is not considered dead.
 
     def close
-      @mutex.lock if @multithread
       @sock.close if @sock && !@sock.closed?
       @sock   = nil
       @retry  = nil
       @status = "NOT CONNECTED"
-    ensure
-      @mutex.unlock if @multithread
     end
 
     ##
@@ -955,26 +959,26 @@ end
 class TCPTimeoutSocket
   
   def initialize(host, port, timeout)
-    Timeout::timeout(MemCacheDb::Server::CONNECT_TIMEOUT, SocketError) do
+    MemCacheTimerDb.timeout(MemCacheDb::Server::CONNECT_TIMEOUT) do
       @sock = TCPSocket.new(host, port)
       @len = timeout
     end
   end
   
   def write(*args)
-    Timeout::timeout(@len, SocketError) do
+    MemCacheTimerDb.timeout(@len) do
       @sock.write(*args)
     end
   end
   
   def gets(*args)
-    Timeout::timeout(@len, SocketError) do
+    MemCacheTimerDb.timeout(@len) do
       @sock.gets(*args)
     end
   end
   
   def read(*args)
-    Timeout::timeout(@len, SocketError) do
+    MemCacheTimerDb.timeout(@len) do
       @sock.read(*args)
     end
   end
@@ -993,5 +997,44 @@ class TCPTimeoutSocket
   
   def close
     @sock.close
+  end
+end
+
+module ContinuumDb
+  POINTS_PER_SERVER = 160 # this is the default in libmemcached
+
+  # Find the closest index in ContinuumDb with value <= the given value
+  def self.binary_search(ary, value, &block)
+    upper = ary.size - 1
+    lower = 0
+    idx = 0
+
+    while(lower <= upper) do
+      idx = (lower + upper) / 2
+      comp = ary[idx].value <=> value
+
+      if comp == 0
+        return idx
+      elsif comp > 0
+        upper = idx - 1
+      else
+        lower = idx + 1
+      end
+    end
+    return upper
+  end
+
+  class Entry
+    attr_reader :value
+    attr_reader :server
+
+    def initialize(val, srv)
+      @value = val
+      @server = srv
+    end
+
+    def inspect
+      "<#{value}, #{server.host}:#{server.port}>"
+    end
   end
 end

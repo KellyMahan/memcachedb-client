@@ -1,13 +1,18 @@
 HERE = File.dirname(__FILE__)
 $LOAD_PATH << "#{HERE}/../lib/"
+#$LOAD_PATH << "/Library/Ruby/Gems/1.8/gems/activesupport-2.2.2/lib/active_support/vendor/memcache-client-1.5.1"
 
 require 'benchmark'
 require 'rubygems'
 require 'test/unit'
 
+$TESTING = true
+require 'memcache' if not defined?(MemCache)
+
 class TestBenchmarkDb < Test::Unit::TestCase
 
   def setup
+    puts "Testing #{MemCache::VERSION}"
     # We'll use a simple @value to try to avoid spending time in Marshal,
     # which is a constant penalty that both clients have to pay
     @value = []
@@ -17,7 +22,7 @@ class TestBenchmarkDb < Test::Unit::TestCase
       ['127.0.0.1:11211', 'localhost:11211'],
       {
         :namespace => "namespace",
-        :timeout => nil,
+#        :timeout => nil,
       }
     ]
     @key1 = "Short"
@@ -33,6 +38,7 @@ class TestBenchmarkDb < Test::Unit::TestCase
     Benchmark.bm(31) do |x|
     
       n = 2500
+#      n = 1000
     
       @m = MemCacheDb.new(*@opts)
       x.report("set:plain:memcache-client") do
