@@ -1,3 +1,4 @@
+
 = 1.1.2
 
 merged changes from memcache-client VERSION = '1.6.5'
@@ -6,6 +7,14 @@ merged changes from memcache-client VERSION = '1.6.5'
   overhead and it is far too easy, now that Sinatra, Rails and Merb are all thread-safe, to
   use memcache-client in a thread-unsafe manner.  Remove some unnecessary mutexing and add
   a test to verify heavily multithreaded usage does not act unexpectedly.
+
+
+* Add optional support for the SystemTimer gem when running on Ruby 1.8.x.  This gem is
+  highly recommended - it ensures timeouts actually work and halves the overhead of using
+  timeouts.  Using this gem, Ruby 1.8.x is actually faster in my performance tests
+  than Ruby 1.9.x.  Just "gem install SystemTimer" and it should be picked up automatically.
+
+= 1.6.4 (2009-02-19)
 
 * Remove native code altogether.  The speedup was only 10% on Ruby 1.8.6 and did not work
   on Ruby 1.9.1.
