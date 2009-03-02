@@ -19,7 +19,7 @@ class TestBenchmarkDb < Test::Unit::TestCase
     @marshalled = Marshal.dump(@value)
     
     @opts = [
-      ['127.0.0.1:11211', 'localhost:11211'],
+      ['127.0.0.1:21201', 'localhost:21201'],
       {
         :namespace => "namespace",
 #        :timeout => nil,

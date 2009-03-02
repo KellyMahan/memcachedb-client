@@ -13,7 +13,7 @@ end
 Thread.abort_on_exception = true
 $TESTING = true
 
-require File.dirname(__FILE__) + '/../lib/memcache' if not defined?(MemCache)
+require File.dirname(__FILE__) + '/../lib/memcache' if not defined?(MemCacheDb)
 
 class MemCacheDb
 
@@ -55,7 +55,7 @@ class Test::Unit::TestCase
   end
   
   def memcached_running?
-    TCPSocket.new('localhost', 11211) rescue false
+    TCPSocket.new('localhost', 21201) rescue false
   end
   
   def xprofile(name, &block)
@@ -85,7 +85,7 @@ class FakeServerDb
   def initialize(socket = nil)
     @closed = false
     @host = 'example.com'
-    @port = 11211
+    @port = 21201
     @socket = socket || FakeSocketDb.new
     @weight = 1
     @multithread = true
@@ -338,7 +338,7 @@ class TestMemCacheDb < Test::Unit::TestCase
     server = FakeServer.new
     server.multithread = false
     
-    @cache = MemCache.new(['localhost:1'], :multithread => false)
+    @cache = MemCacheDb.new(['localhost:1'], :multithread => false)
 
     server.socket.data.write "bogus response\r\nbogus response\r\n"
     server.socket.data.rewind
@@ -890,7 +890,7 @@ class TestMemCacheDb < Test::Unit::TestCase
     socket.data.rewind
     server = FakeServerDb.new socket
     def server.host() 'localhost'; end
-    def server.port() 11211; end
+    def server.port() 21201; end
 
     @cache.servers = []
     @cache.servers << server
@@ -978,7 +978,7 @@ class TestMemCacheDb < Test::Unit::TestCase
   def test_crazy_multithreaded_access
     requirement(memcached_running?, 'A real memcached server must be running for performance testing') do
 
-      cache = MemCache.new(['localhost:11211', '127.0.0.1:11211'])
+      cache = MemCacheDb.new(['localhost:21201', '127.0.0.1:21201'])
       cache.flush_all
       workers = []
 
