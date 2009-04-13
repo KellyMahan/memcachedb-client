@@ -35,7 +35,7 @@ class MemCacheDb
 
   # The version of MemCacheDb you are using.
 
-  VERSION = '1.1.3'
+  VERSION = '1.1.4'
   ##
   # Default options for the cache object.
 
@@ -242,14 +242,14 @@ class MemCacheDb
   # Note that get_multi assumes the values are marshalled.
 
 
-  def get_range(key1, key2, limit=100)
+  def get_range(key1, key2, start_exclude=0, end_exclude=0, limit=100)
     raise MemCacheDbError, 'No active servers' unless active?
 
     results = {}
 
     begin
       @servers.each do |server|
-        values = cache_rget(server, key1, key2, limit)
+        values = cache_rget(server, key1, key2, limit, start_exclude, end_exclude)
         values.each do |key, value|
           results[key.gsub(/#{@namespace}\:/,'')] = Marshal.load value
         end
@@ -617,7 +617,7 @@ class MemCacheDb
     end
   end
   
-  def cache_rget(server, start_key, end_key, max=100)
+  def cache_rget(server, start_key, end_key, max=100, start_exclude=0, end_exclude=0)
   
     # rget <start key> <end key> <left openness flag> <right openness flag> <max items>\r\n
     # 
@@ -650,10 +650,13 @@ class MemCacheDb
     # - <data block> is the data for this item.
     # 
     # Notice: all keys in MemcacheDB is sorted alphabetically, so is the return of query result.
+    if max > 100
+      max = 100
+    end
     
     with_socket_management(server) do |socket|
       values = {}
-      socket.write "rget #{start_key} #{end_key} 0 0 #{max}\r\n"
+      socket.write "rget #{start_key} #{end_key} #{start_exclude} #{end_exclude} #{max}\r\n"
 
       while keyline = socket.gets do
         return values if keyline == "END\r\n"
