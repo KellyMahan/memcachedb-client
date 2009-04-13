@@ -28,12 +28,14 @@ end
 # A Ruby client library for memcachedb.
 #
 
+
+
 class MemCacheDb
 
 
   # The version of MemCacheDb you are using.
 
-  VERSION = '1.1.2'
+  VERSION = '1.1.3'
   ##
   # Default options for the cache object.
 
@@ -246,7 +248,7 @@ class MemCacheDb
     results = {}
 
     begin
-      servers.each do |server|
+      @servers.each do |server|
         values = cache_rget(server, key1, key2, limit)
         values.each do |key, value|
           results[key.gsub(/#{@namespace}\:/,'')] = Marshal.load value
