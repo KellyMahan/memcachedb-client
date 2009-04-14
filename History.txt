@@ -1,3 +1,6 @@
+= 1.1.5
+  fixed issue with rget and namespace problem
+
 = 1.1.4
 
   get_range(key1, key2, start_exclude=0, end_exclude=0, limit=100)

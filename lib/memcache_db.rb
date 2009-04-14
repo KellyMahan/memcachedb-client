@@ -35,7 +35,7 @@ class MemCacheDb
 
   # The version of MemCacheDb you are using.
 
-  VERSION = '1.1.4'
+  VERSION = '1.1.5'
   ##
   # Default options for the cache object.
 
@@ -656,7 +656,7 @@ class MemCacheDb
     
     with_socket_management(server) do |socket|
       values = {}
-      socket.write "rget #{start_key} #{end_key} #{start_exclude} #{end_exclude} #{max}\r\n"
+      socket.write "rget #{make_cache_key(start_key)} #{make_cache_key(end_key)} #{start_exclude} #{end_exclude} #{max}\r\n"
 
       while keyline = socket.gets do
         return values if keyline == "END\r\n"
